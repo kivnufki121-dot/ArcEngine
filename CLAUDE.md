@@ -26,6 +26,7 @@ Objects (импорт FBX/GLB, гизмо, свойства объектов, а
 | `tools/`, `tests/`, ассеты, новый скрипт, архив, проверка типов и ошибки tsc | `claude/skills/build/SKILL.md` |
 | своя геометрия (сетка из вершин, порт генератора, импорт glTF), материал с картой нормалей, новый источник света, свой шейдер, thin instances и процедурная расстановка; «сетка вывернута», «свет не с той стороны», пропал свет или меш | `claude/skills/render-conventions/SKILL.md` |
 | проверка правки глазами и числами: панель браузера, `Debug3D` (удержание вида, кадры без rAF, замер, линтер сцены, отладочные режимы), замер цены кадра, воспроизведение состояния пользователя | `claude/skills/verify/SKILL.md` |
+| перенос прототипа в Unity: `tools/export-unity.mjs`, пакет `unity/com.arcengine.runtime` (C#), отчёт `MIGRATION.md`, тег `arc-base` — до переноса не нужен | `claude/skills/unity-port/SKILL.md` |
 
 ## Запуск и сборка
 
@@ -123,10 +124,12 @@ assets/           ground_texture_{g,d,s}.jpg — трава, песок, сне�
                   (character.glb — персонаж с клипами idle/run, генерируется tools/make-character.mjs);
                   sounds/*.wav, *.mp3 — звуки (step.wav генерируется tools/make-sounds.mjs)
 tools/            dev-server.mjs, build.mjs, asset-scan.mjs, zip.mjs, check.mjs (типы + тесты),
-                  make-character.mjs, make-sounds.mjs
+                  make-character.mjs, make-sounds.mjs, export-unity.mjs (перенос в Unity)
 tsconfig.json     проверка типов игры; globals.d.ts — window.app, material.arcToon, записи объектов
 tests/            *.test.mjs (node --test): Store, heightAt, сканер ассетов, запись редактора, звук,
-                  связка скиллов; browser-scripts.mjs — скрипты игры в node:vm + пустышка Babylon
+                  экспорт в Unity, связка скиллов; browser-scripts.mjs — скрипты игры в node:vm + пустышка Babylon
+unity/            com.arcengine.runtime — пакет Unity (C#-двойник API набора и импорт сцены; в билд игры
+                  не едет); export-unity.mjs копирует его в Unity-проект, скилл unity-port
 _utils/editor/    редактор (в билд не едет): server.mjs (HTTP), save.mjs (запись Constants.js,
                   Objects.js и UILayout.js), index.html, i18n.js (EN/RU), schema.js, inspector.js (Global Settings),
                   objects-panel.js (Objects: список, свойства, гизмо, импорт, тег, скрытие, звук),
