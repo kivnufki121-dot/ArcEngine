@@ -4,6 +4,7 @@
 // API (UI.Get, Location.FindByTag, Sound3D.Play, Model3D.Clips…), so game code ports line by line.
 //
 //   node tools/export-unity.mjs <UnityProject>   # writes <UnityProject>/Assets/ArcExport/
+//   node tools/export-unity.mjs --report         # only the report, into dist/MIGRATION.md — any time
 //
 // What lands there:
 //   arc-export.json — constants (Constants.js), objects (Objects.js), UI (UILayout.js), terrain grid
@@ -333,24 +334,61 @@ export function gameFiles(root) {
     .filter(f => !KIT_FILES.includes(f)).sort();
 }
 
-// Kit calls of the game code: per API row — uses and the first place.
+// The comment block a kit file starts with (every file of the kit has one, the agent writes it for a
+// new file anyway): what the feature is, in the author's words. null — the file has none.
+export function headerOf(text) {
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length && !lines[i].trim()) i++;
+  const out = [];
+  if (/^\s*\/\*/.test(lines[i] || '')) {
+    for (; i < lines.length; i++) {
+      out.push(lines[i].replace(/^\s*\/\*+\s?|\s*\*+\/\s*$|^\s*\*\s?/g, ''));
+      if (/\*\//.test(lines[i])) break;
+    }
+  } else {
+    for (; i < lines.length && /^\s*\/\//.test(lines[i]); i++) out.push(lines[i].replace(/^\s*\/\/\s?/, ''));
+  }
+  const text2 = out.join('\n').trim();
+  return text2 || null;
+}
+
+// Members of the kit's globals and of app.location / app.camera / terrain: a call no API row knows
+// is reported as unknown — a kit function the export has no twin for, or a typo.
+const KIT_MEMBER = /(?<!\bwindow\.|\bdocument\.)\b(UI|Sound3D|Model3D|Gltf3D|Clips3D|Store|World3D|Debug3D|Instances3D|Terrain3D|Location3D|CameraController|location|camera|terrain)\.(\w+)/g;
+const STICKY = API.map(([rx]) => new RegExp(rx.source, 'y'));
+
+function knownCall(code, at, dot) {
+  return STICKY.some(rx => { rx.lastIndex = 0; if (rx.test(code.slice(at))) return true; rx.lastIndex = 0; return rx.test(code.slice(dot)); });
+}
+
+// Kit calls of the game code: per API row — uses and the first place; calls no row knows; the
+// header of every file; tags, UI ids and constant names the code mentions.
 export function scanGame(root, files) {
   const rows = API.map(([rx, cs, note]) => ({ js: rx.source, cs, note: note || '', count: 0, first: '' }));
-  const tags = new Set(), uiIds = new Set(), names = new Set();
+  const tags = new Set(), uiIds = new Set(), names = new Set(), unknown = new Map(), headers = {};
   for (const f of files) {
-    const lines = fs.readFileSync(path.join(root, f), 'utf8').split(/\r?\n/);
-    lines.forEach((line, i) => {
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    headers[f] = headerOf(text);
+    text.split(/\r?\n/).forEach((line, i) => {
       const code = line.replace(/\/\/.*$/, '');
       API.forEach(([rx], k) => {
         if (rx.test(code)) { rows[k].count++; if (!rows[k].first) rows[k].first = f + ':' + (i + 1); }
       });
+      for (const m of code.matchAll(KIT_MEMBER)) {
+        if (knownCall(code, m.index, m.index + m[1].length)) continue;
+        const call = m[1] + '.' + m[2], u = unknown.get(call) || { call, count: 0, first: f + ':' + (i + 1) };
+        u.count++;
+        unknown.set(call, u);
+      }
       for (const m of code.matchAll(/findByTag\(\s*['"]([^'"]+)['"]/g)) tags.add(m[1]);
       for (const m of code.matchAll(/_TAG\s*=\s*['"]([^'"]+)['"]/g)) tags.add(m[1]);
       for (const m of code.matchAll(/UI\.(?:get|def)\(\s*['"]([^'"]+)['"]/g)) uiIds.add(m[1]);
       for (const m of code.matchAll(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g)) names.add(m[0]);
     });
   }
-  return { rows: rows.filter(r => r.count), tags: [...tags], uiIds: [...uiIds], names: [...names] };
+  return { rows: rows.filter(r => r.count), unknown: [...unknown.values()], headers,
+    tags: [...tags], uiIds: [...uiIds], names: [...names] };
 }
 
 export function report({ files, scan, diff, constants, objects, layout, assets, bounds }) {
@@ -359,7 +397,14 @@ export function report({ files, scan, diff, constants, objects, layout, assets, 
   L.push('# Перенос в Unity — отчёт экспорта', '');
   L.push('Сгенерирован `node tools/export-unity.mjs` — не править руками, он перезаписывается при каждом экспорте.',
     'Как переносить — скилл `unity-port` (`claude/skills/unity-port/SKILL.md` в проекте ArcEngine).', '');
-  L.push('## Код игры', '', files.length ? files.map(f => '- `' + f + '`').join('\n') : '- (нет файлов игры в js/)', '');
+  // What the game is made of: every game file with its header comment, in the author's words.
+  L.push('## Фичи — файлы игры и их шапки', '');
+  if (!files.length) L.push('Нет файлов игры в js/ (всё, кроме модулей набора).', '');
+  for (const f of files) {
+    const h = scan.headers && scan.headers[f];
+    L.push('### `' + f + '`', '');
+    L.push(h ? h.split('\n').map(s => '> ' + s).join('\n') : '**Нет шапки** — что делает файл, неизвестно: опишите его комментарием в начале файла.', '');
+  }
   const twin = scan.rows.filter(r => r.note !== 'manual'), manual = scan.rows.filter(r => r.note === 'manual');
   L.push('## Вызовы набора и их двойники в C#', '');
   if (twin.length) {
@@ -372,6 +417,14 @@ export function report({ files, scan, diff, constants, objects, layout, assets, 
     L.push('| JS (шаблон) | раз | первое место |', '|---|---|---|');
     for (const r of manual) L.push('| `' + r.js.replace(/\|/g, '\\|') + '` | ' + r.count + ' | ' + r.first + ' |');
   } else L.push('Нет: код игры ходит только через API набора.');
+  L.push('');
+  const unknown = scan.unknown || [];
+  L.push('## Нет в таблице экспорта — проверить', '');
+  if (unknown.length) {
+    L.push('Обращения к набору, о которых экспорт ничего не знает: функция набора без C#-двойника (дописать его в пакет',
+      'и строку в `API` экспорта) или опечатка.', '', '| вызов | раз | первое место |', '|---|---|---|');
+    for (const u of unknown) L.push('| `' + u.call + '` | ' + u.count + ' | ' + u.first + ' |');
+  } else L.push('Нет: каждое обращение к набору есть в таблице.');
   L.push('');
   L.push('## Контракт сцены', '');
   const missTags = scan.tags.filter(t => !objTags.has(t)), missIds = scan.uiIds.filter(id => !layoutIds.has(id));
@@ -519,8 +572,21 @@ export async function exportUnity(root, project) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {
   const project = process.argv.slice(2).find(a => !a.startsWith('--'));
+  if (!project && process.argv.includes('--report')) {
+    try {
+      const { report: md } = await collect(ROOT);
+      const file = path.join(ROOT, 'dist', 'MIGRATION.md');
+      writeIfChanged(file, md);
+      console.log('Отчёт о переносе в Unity: ' + file);
+    } catch (e) {
+      console.error('Отчёт не собран: ' + e.message);
+      process.exit(1);
+    }
+    process.exit(0);
+  }
   if (!project) {
     console.log('Использование: node tools/export-unity.mjs <папка Unity-проекта>   (пишет Assets/ArcExport/)');
+    console.log('               node tools/export-unity.mjs --report             (только отчёт: dist/MIGRATION.md)');
     process.exit(1);
   }
   try {

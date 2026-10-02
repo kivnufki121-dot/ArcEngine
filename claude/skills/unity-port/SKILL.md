@@ -11,6 +11,7 @@ game code, and it moves line by line because the package mirrors the kit's API:
 `UI.get('score')` -> `UI.Get("score")`, `location.findByTag('coin')` -> `app.Location.FindByTag("coin")`.
 
 ```
+node tools/export-unity.mjs --report           # only the report, dist/MIGRATION.md — any time, no Unity
 node tools/export-unity.mjs <UnityProject>     # Assets/ArcExport/ + Packages/com.arcengine.runtime
 Unity.exe -batchmode -projectPath <UnityProject> -executeMethod ArcEngine.Editor.ArcImporter.ImportCli -logFile import.log
 Unity.exe -batchmode -projectPath <UnityProject> -runTests -testPlatform EditMode -testResults r.xml -logFile t.log
@@ -31,10 +32,16 @@ no errors; the log lines start with `ArcEngine`. Unity must not have the project
    folder) keeps the reference. A package file edited inside the Unity project is not overwritten
    (`.arc-export.json` there remembers what the export wrote) — the export prints it.
 3. **Import** (`ArcImporter`) builds `Assets/Arc/Scene.unity` and checks itself (below).
-4. **Report** — `Assets/ArcExport/MIGRATION.md`: every kit call of the game code with its C# twin,
-   calls with no twin (BABYLON, `World3D.*`, the view, DOM, timers), the scene contract (tags and UI
-   ids the code asks for that the scene does not have), the constants the game reads, what the
-   prototype changed in the kit since `arc-base`, what never ports.
+4. **Report** — `Assets/ArcExport/MIGRATION.md` (or `dist/MIGRATION.md` with `--report`), built
+   from the code on every run, so it is never stale and nobody keeps it by hand:
+   - the features: every game file with its header comment — the description the file starts
+     with, like every file of the kit (a file without one is marked: its feature is unknown);
+   - every kit call of the game code with its C# twin, and calls with no twin (BABYLON,
+     `World3D.*`, the view, DOM, timers) — port by hand;
+   - kit members no `API` row knows (`UI.scale`, `location.loadGround`…) — a twin to add to the
+     package plus an `API` row, or a typo;
+   - the scene contract (tags and UI ids the code asks for that the scene does not have), the
+     constants the game reads, what the prototype changed in the kit since `arc-base`, what never ports.
 5. **Port** each game file (`js/` minus the kit's modules — `KIT_FILES`) to C# in `Assets/Game/`
    with an asmdef referencing `ArcEngine.Runtime` (tests can then reference it too).
 6. **Check**: import exit code 0, tests, Play.

@@ -98,6 +98,30 @@ test('отчёт: вызовы игры и их двойники, что без 
   assert.doesNotMatch(md, /`player` \*\*нет/);
   assert.match(md, /`GAME_SPEED` = 2/);
   assert.match(md, /git tag arc-base/);
+  assert.match(md, /\*\*Нет шапки\*\*/, 'файл без шапки помечен');
+});
+
+test('отчёт: шапка файла — описание фичи; обращение к набору, которого нет в таблице, — «проверить»', () => {
+  const root = tempDir({
+    'js/Jetpack.js': [
+      '// Jetpack.js — a jetpack: hold Space to fly, fuel runs out in JETPACK_FUEL_SEC.',
+      '// Lands by itself when the fuel is gone.',
+      '',
+      "UI.get('fuel').setValue(UI.scale());",
+      'app.location.loadGround(); app.location.findByTag("pad");',
+      'const back = window.location.href; World3D.engine.getFps();',
+    ].join('\n'),
+    'js/Shop.js': '/*\n * Shop.js — buy upgrades between rounds.\n */\nconst x = 1;',
+  });
+  const scan = scanGame(root, ['js/Jetpack.js', 'js/Shop.js']);
+  assert.equal(scan.headers['js/Jetpack.js'], 'Jetpack.js — a jetpack: hold Space to fly, fuel runs out in JETPACK_FUEL_SEC.\nLands by itself when the fuel is gone.');
+  assert.equal(scan.headers['js/Shop.js'], 'Shop.js — buy upgrades between rounds.');
+  assert.deepEqual(scan.unknown.map(u => u.call).sort(), ['UI.scale', 'location.loadGround'],
+    'известные (UI.get, findByTag, getFps) и window.location — не в списке');
+  const md = report({ files: ['js/Jetpack.js', 'js/Shop.js'], scan, diff: { base: 'abc1234', files: [] },
+    constants: { numbers: [], strings: [] }, objects: [], layout: [], assets: [], bounds: [] });
+  assert.match(md, /### `js\/Jetpack\.js`\n\n> Jetpack\.js — a jetpack/);
+  assert.match(md, /\| `UI\.scale` \| 1 \| js\/Jetpack\.js:4 \|/);
 });
 
 test('пакет: копия в Packages/ проекта; правка пользователя не затирается; ссылка из manifest — без копии', () => {
