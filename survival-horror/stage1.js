@@ -10,9 +10,12 @@ engine.setHardwareScalingLevel(Math.max(1,(devicePixelRatio||1)/1.5));
 const scene=new BABYLON.Scene(engine);
 scene.clearColor=new BABYLON.Color4(.025,.035,.043,1);
 scene.ambientColor=new BABYLON.Color3(.16,.2,.22);
-const hemi=new BABYLON.HemisphericLight('fill',new BABYLON.Vector3(0,1,0),scene);hemi.intensity=.72;
+const hemi=new BABYLON.HemisphericLight('fill',new BABYLON.Vector3(0,1,0),scene);hemi.intensity=.88;
+hemi.groundColor=new BABYLON.Color3(.10,.13,.16);
 const light=new BABYLON.PointLight('emergency',new BABYLON.Vector3(0,4,0),scene);
-light.diffuse=new BABYLON.Color3(.95,.3,.2);light.intensity=12;light.range=25;
+light.diffuse=new BABYLON.Color3(.95,.3,.2);light.intensity=8;light.range=21;
+const coolFill=new BABYLON.PointLight('cold overhead fill',new BABYLON.Vector3(-4,5,3),scene);
+coolFill.diffuse=new BABYLON.Color3(.44,.67,.78);coolFill.intensity=2.4;coolFill.range=18;
 const camera=new BABYLON.FreeCamera('third person shoulder camera',new BABYLON.Vector3(-10,3.3,14),scene);
 camera.fov=.85;camera.minZ=.1;scene.activeCamera=camera;
 const material=(name,hex,glow=0)=>{const m=new BABYLON.StandardMaterial(name,scene);m.diffuseColor=BABYLON.Color3.FromHexString(hex);m.specularColor=new BABYLON.Color3(.07,.08,.09);if(glow)m.emissiveColor=m.diffuseColor.scale(glow);return m};
@@ -471,7 +474,7 @@ async function loadExternalRaptor(){
   const attack=findGroup(['bite','attack','tackle','leap'])||walk;
   for(const group of groups)group.stop();
   if(idle)idle.start(true);
-  externalRaptor={visual,groups,idle,walk,attack,current:idle};
+  externalRaptor={visual,groups,idle,walk,attack,current:idle,transition:null};
   // Procedural body has nested transform nodes: hide the entire old hierarchy.
   for(const child of raptorRoot.getChildren())if(child!==visual)child.setEnabled(false);
   notify('PBR ВЕЛОЦИРАПТОР ЗАГРУЖЕН · '+groups.length+' АНИМАЦИЙ',5);
@@ -482,10 +485,29 @@ function animateExternalRaptor(moving){
  if(!externalRaptor)return;
  const {idle,walk,attack,groups}=externalRaptor;
  const target=raptor.windup>0?attack:moving?walk:idle;
- if(target&&target!==externalRaptor.current){
-  for(const group of groups)group.stop();
-  target.start(true);
+ if(!target)return;
+ if(target!==externalRaptor.current){
+  const previous=externalRaptor.current;
+  // Cross-fade the rigged clips instead of snapping between poses.
+  if(typeof target.start==='function')target.start(true,1,target.from,target.to,false);
+  if(previous&&previous!==target){
+   if(typeof previous.setWeightForAllAnimatables==='function')previous.setWeightForAllAnimatables(1);
+  }
+  if(typeof target.setWeightForAllAnimatables==='function')target.setWeightForAllAnimatables(0);
+  externalRaptor.transition={from:previous,to:target,elapsed:0,duration:.24};
   externalRaptor.current=target;
+ }
+ const transition=externalRaptor.transition;
+ if(transition){
+  transition.elapsed+=Math.min(.05,engine.getDeltaTime()/1000);
+  const t=Math.min(1,transition.elapsed/transition.duration);
+  const smooth=t*t*(3-2*t);
+  if(transition.to&&typeof transition.to.setWeightForAllAnimatables==='function')transition.to.setWeightForAllAnimatables(smooth);
+  if(transition.from&&transition.from!==transition.to&&typeof transition.from.setWeightForAllAnimatables==='function')transition.from.setWeightForAllAnimatables(1-smooth);
+  if(t>=1){
+   if(transition.from&&transition.from!==transition.to)transition.from.stop();
+   externalRaptor.transition=null;
+  }
  }
 }
 loadExternalRaptor();
