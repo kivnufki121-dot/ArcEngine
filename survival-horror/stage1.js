@@ -187,7 +187,8 @@ function update(dt){
  if(length>.1)player.heading=Math.atan2(mx,mz);
  character.position.set(player.x,0,player.z);
  character.scaling.y=crouch?.72:1;
- character.rotation.y=player.heading;
+ // The mesh was modeled facing -Z (ponytail at +Z); align its front with travel.
+ character.rotation.y=player.heading+Math.PI;
  walkCycle+=dt*(running?12:8)*(length>.1?1:0);
  const swing=length>.1?Math.sin(walkCycle)*.45:0;
  leftLeg.rotation.x=swing;rightLeg.rotation.x=-swing;
