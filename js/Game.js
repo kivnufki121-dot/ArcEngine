@@ -51,11 +51,11 @@ class Game {
 
         // The model appears when its file has loaded; play() on the current clip costs nothing.
         const clips = this.hero && this.hero.mesh ? Model3D.clips(this.hero.mesh) : null;
-        if (clips) clips.play(this.player && this.player.moving ? 'run' : 'idle');
+        if (clips) clips.play(this.player && this.player.moving && !this.player.jumping ? 'run' : 'idle');
 
         // Footsteps: the sound stands where the character stands, so it fades with the distance.
         this._stepTimer -= this.player && this.player.moving ? dt : 0;
-        if (this.player && this.player.moving && this._stepTimer <= 0) {
+        if (this.player && this.player.moving && !this.player.jumping && this._stepTimer <= 0) {
             this._stepTimer = c.stepSec;
             if (this.hero) Sound3D.play('assets/sounds/step.wav', { at: this.hero.def, volume: 0.7 });
         }
