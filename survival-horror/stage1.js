@@ -64,18 +64,40 @@ function heroBall(name,diameter,x,y,z,mat,parent=character){
  const mesh=BABYLON.MeshBuilder.CreateSphere(name,{diameter,segments:10},scene);
  mesh.parent=parent;mesh.position.set(x,y,z);mesh.material=mat;mesh.isPickable=false;return mesh;
 }
+// Additional layered armor and readable silhouette for the playable prototype.
+const underArmor=material('flexible undersuit','#211e2c');
+const visor=material('violet eye makeup','#392943');
+const metalEdge=material('brushed gunmetal','#454654');
 const torso=heroBox('armored torso',.61,.72,.34,0,1.38,0,suit);
+heroBox('segmented abdomen',.42,.33,.35,0,1.08,-.015,underArmor);
+for(const x of [-.15,.15]){
+ heroBox('rib plate',.21,.18,.4,x,1.42,-.025,armor);
+ heroBox('upper chest plate',.21,.15,.405,x,1.61,-.035,armor);
+ heroBox('belt buckle',.12,.12,.36,x,1.00,-.03,metalEdge);
+}
+heroBox('backpack frame',.37,.56,.13,0,1.38,.26,metalEdge);
+heroBox('backpack power cell',.23,.36,.15,0,1.38,.35,cyan);
+heroBox('utility belt',.53,.11,.37,0,.96,0,metalEdge);
+heroBox('left hip pouch',.18,.22,.22,-.31,.83,0,armor);
+heroBox('right hip pouch',.18,.22,.22,.31,.83,0,armor);
 heroBox('left armored shoulder',.24,.23,.38,-.39,1.74,0,armor);
 heroBox('right armored shoulder',.24,.23,.38,.39,1.74,0,armor);
 heroBox('chest armor',.53,.27,.38,0,1.55,-.02,armor);
 heroBox('waist',.43,.3,.31,0,.97,0,suit);
 heroBall('head',.33,0,2.03,-.01,skin);
+heroBox('left eyebrow',.10,.018,.02,-.075,2.08,-.168,visor);
+heroBox('right eyebrow',.10,.018,.02,.075,2.08,-.168,visor);
+heroBall('left eye',.037,-.074,2.04,-.165,cyan);
+heroBall('right eye',.037,.074,2.04,-.165,cyan);
+heroBox('neck guard',.24,.12,.24,0,1.84,.01,armor);
 heroBox('dark hair crown',.37,.19,.36,0,2.23,.025,hair);
 heroBall('high ponytail base',.24,0,2.35,.15,hair);
+const hairStrands=[];
 for(let i=0;i<8;i++){
  const x=(i-3.5)*.055;
  const strand=heroBox('long ponytail strand',.045,1.17,.065,x,1.65,.26,i%3===0?hairBlue:i%3===1?hairPurple:hair);
  strand.rotation.z=(i-3.5)*.06;
+ hairStrands.push(strand);
 }
 const leftArm=new BABYLON.TransformNode('left arm pivot',scene),rightArm=new BABYLON.TransformNode('right arm pivot',scene);
 const leftLeg=new BABYLON.TransformNode('left leg pivot',scene),rightLeg=new BABYLON.TransformNode('right leg pivot',scene);
@@ -90,13 +112,14 @@ for(const [pivot,side] of [[leftLeg,-1],[rightLeg,1]]){
  heroBox('leg armor',.23,.65,.26,0,-.35,0,suit,pivot);
  heroBox('knee guard',.25,.21,.3,0,-.65,-.035,armor,pivot);
  heroBox('heavy boot',.29,.36,.4,0,-.92,-.075,boot,pivot);
+ heroBox('boot toe armor',.3,.1,.21,0,-1.035,-.23,metalEdge,pivot);
  heroBox('leg neon seam',.045,.51,.275,side*.13,-.34,0,neon,pivot);
  heroBox('boot light',.21,.055,.41,0,-1.04,-.08,cyan,pivot);
 }
 heroBox('chest neon left',.055,.52,.37,-.25,1.43,-.005,neon);
 heroBox('chest neon right',.055,.52,.37,.25,1.43,-.005,neon);
 heroBox('chest cyan badge',.23,.08,.4,0,1.73,-.02,cyan);
-let walkCycle=0;
+let walkCycle=0,walkBlend=0,crouchBlend=0;
 const player={x:-10,z:10,heading:0,key:false,power:false,door:false,stamina:100,crouch:false,alive:true};
 const controls=new Set();
 addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();controls.add(e.code)});
@@ -188,17 +211,33 @@ function update(dt){
  // The modeled face points toward local -Z, so yaw equals the shoulder camera yaw.
  player.heading=shoulderYaw;
  character.position.set(player.x,0,player.z);
- character.scaling.y=crouch?.72:1;
- // Model faces local -Z, whereas the camera's forward basis is +Z at yaw 0.
- // Rotate the visual mesh 180 degrees; do not change camera or input mapping.
+ // Keep the approved aim-locked orientation and camera-relative controls unchanged.
  character.rotation.y=shoulderYaw+Math.PI;
- // Lightweight directional gait: reverse steps when moving backward.
- walkCycle+=dt*(running?12:8)*(length>.1?1:0);
- const gaitDirection=sz>0.15?-1:1;
- const swing=length>.1?Math.sin(walkCycle)*.45*gaitDirection:0;
- leftLeg.rotation.x=swing;rightLeg.rotation.x=-swing;
- leftArm.rotation.x=-swing*.75;rightArm.rotation.x=swing*.75;
- if(length<=.1){leftLeg.rotation.x*=.7;rightLeg.rotation.x*=.7;leftArm.rotation.x*=.7;rightArm.rotation.x*=.7;}
+ const blend=Math.min(1,dt*10);
+ walkBlend+=(Math.min(1,length)-walkBlend)*blend;
+ crouchBlend+=((crouch?1:0)-crouchBlend)*blend;
+ character.scaling.y=1-crouchBlend*.28;
+ const pace=running?12:8;
+ walkCycle+=dt*pace*Math.max(.15,walkBlend);
+ const gaitDirection=sz>.15?-1:1;
+ const stride=Math.sin(walkCycle)*.5*walkBlend*gaitDirection;
+ const strafe=Math.max(-1,Math.min(1,sx));
+ leftLeg.rotation.x=stride;
+ rightLeg.rotation.x=-stride;
+ leftLeg.rotation.z=-strafe*.13*walkBlend;
+ rightLeg.rotation.z=-strafe*.13*walkBlend;
+ leftArm.rotation.x=-stride*.7;
+ rightArm.rotation.x=stride*.7;
+ leftArm.rotation.z=-.08-crouchBlend*.1;
+ rightArm.rotation.z=.08+crouchBlend*.1;
+ const bob=Math.abs(Math.sin(walkCycle))*walkBlend*.045;
+ torso.position.y=1.38+bob;
+ character.position.y=-crouchBlend*.08;
+ for(let i=0;i<hairStrands.length;i++){
+  const strand=hairStrands[i];
+  strand.rotation.x=Math.sin(walkCycle*.55+i*.3)*.07*walkBlend;
+  strand.rotation.z=(i-3.5)*.06+Math.sin(walkCycle*.6+i*.6)*.035*walkBlend;
+ }
  const action=pressed('KeyE')||button(0);
  if(action&&!prevAction)interact();
  prevAction=action;
@@ -211,7 +250,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Тестовая лаборатория и стилизованная 3D-героиня по присланному референсу.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.2: улучшенная броня, лицо, волосы и плавные процедурные анимации героини.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
