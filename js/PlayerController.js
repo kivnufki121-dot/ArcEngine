@@ -25,7 +25,7 @@ class PlayerController {
         const vx = right.x * input.moveX - forward.x * input.moveY;
         const vy = right.y * input.moveX - forward.y * input.moveY;
         const crouching = !!input.crouch && !this.jumping;
-        const run = !!input.run && moving && !crouching;
+        const run = !!input.run && moving && !crouching && this.app.game.energy > 0.05;
         const targetSpeed = moving ? (crouching ? 85 : run ? 260 : 165) * magnitude : 0;
         const response = 1 - Math.exp(-12 * Math.max(0, dt));
         this.speed += (targetSpeed - this.speed) * response;
@@ -33,7 +33,7 @@ class PlayerController {
             const heading = Math.atan2(vy, vx);
             let delta = Math.atan2(Math.sin(heading - this.heading), Math.cos(heading - this.heading));
             this.heading += delta * (1 - Math.exp(-16 * Math.max(0, dt)));
-            const step = this.speed * Math.max(0, dt) / Math.max(0.001, length);
+            const step = this.speed * Math.max(0, dt) / Math.max(1, length);
             this.position.x += vx * step;
             this.position.y += vy * step;
         }
