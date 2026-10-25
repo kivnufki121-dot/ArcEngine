@@ -37,7 +37,13 @@ class Game {
 
     update(dt) {
         this.controls = this.input.poll();
-        if (this.player) this.player.update(dt, this.controls);
+        if (this.player) {
+            this.player.update(dt, this.controls);
+            if (this.controls.gamepadConnected) {
+                this.app.camera.azimuth += this.controls.lookX * dt * 2.2;
+                this.app.camera.pitch = this.app.camera._clampPitch(this.app.camera.pitch + this.controls.lookY * dt * 1.4);
+            }
+        }
         this.running = !!(this.player && this.player.running && this.energy > 0);
         const c = Game.cfg();
         this.energy = Math.max(0, Math.min(1, this.energy + (this.running ? -dt / c.runSec : dt / c.restSec)));
