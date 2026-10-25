@@ -189,7 +189,9 @@ function update(dt){
  player.heading=shoulderYaw;
  character.position.set(player.x,0,player.z);
  character.scaling.y=crouch?.72:1;
- character.rotation.y=shoulderYaw;
+ // Model faces local -Z, whereas the camera's forward basis is +Z at yaw 0.
+ // Rotate the visual mesh 180 degrees; do not change camera or input mapping.
+ character.rotation.y=shoulderYaw+Math.PI;
  // Lightweight directional gait: reverse steps when moving backward.
  walkCycle+=dt*(running?12:8)*(length>.1?1:0);
  const gaitDirection=sz>0.15?-1:1;
