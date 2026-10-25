@@ -339,6 +339,59 @@ function animateRaptor(dt,moving){
  raptorHitFlash=Math.max(0,raptorHitFlash-dt);
  raptorCoat.emissiveColor=raptorHitFlash>0?new BABYLON.Color3(.65,.06,.035):BABYLON.Color3.Black();
 }
+// External rigged model integration. Only activates when a legitimate GLB file
+// is present in assets/raptor/velociraptor.glb; otherwise the tested procedural
+// raptor remains visible. All AI, hit detection and navigation stay unchanged.
+let externalRaptor=null;
+async function loadExternalRaptor(){
+ const assetUrl='./assets/raptor/velociraptor.glb';
+ try{
+  const probe=await fetch(assetUrl,{method:'HEAD'});
+  if(!probe.ok||!probe.headers.get('content-type')?.includes('model')&&Number(probe.headers.get('content-length')||0)<1000)return;
+  if(!BABYLON.SceneLoader.IsPluginForExtensionAvailable('.glb')){
+   await new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js';
+    script.onload=resolve;script.onerror=reject;document.head.appendChild(script);
+   });
+  }
+  const result=await BABYLON.SceneLoader.ImportMeshAsync('','./assets/raptor/','velociraptor.glb',scene);
+  const visual=new BABYLON.TransformNode('imported velociraptor visual',scene);
+  for(const mesh of result.meshes){
+   if(!mesh.parent)mesh.parent=visual;
+   mesh.isPickable=false;
+  }
+  const bounds=visual.getHierarchyBoundingVectors();
+  const dimensions=bounds.max.subtract(bounds.min);
+  const length=Math.max(dimensions.x,dimensions.z,.001);
+  visual.scaling.scaleInPlace(2.5/length);
+  visual.parent=raptorRoot;
+  visual.rotation.y=Math.PI;
+  const groups=result.animationGroups||[];
+  const findGroup=(words)=>groups.find(g=>words.some(word=>g.name.toLowerCase().includes(word)));
+  const idle=findGroup(['idle','breath'])||groups[0];
+  const walk=findGroup(['walk','run','locomotion'])||idle;
+  const attack=findGroup(['attack','bite'])||walk;
+  for(const group of groups)group.stop();
+  if(idle)idle.start(true);
+  externalRaptor={visual,groups,idle,walk,attack,current:idle};
+  for(const child of raptorRoot.getChildren())if(child!==visual&&child instanceof BABYLON.AbstractMesh)child.setEnabled(false);
+  notify('ЗАГРУЖЕНА 3D-МОДЕЛЬ ВЕЛОЦИРАПТОРА',3);
+ }catch(error){
+  console.warn('External raptor unavailable; procedural fallback retained',error);
+ }
+}
+function animateExternalRaptor(moving){
+ if(!externalRaptor)return;
+ const {idle,walk,attack,groups}=externalRaptor;
+ const target=raptor.windup>0?attack:moving?walk:idle;
+ if(target&&target!==externalRaptor.current){
+  for(const group of groups)group.stop();
+  target.start(true);
+  externalRaptor.current=target;
+ }
+}
+loadExternalRaptor();
 const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0,lastX:6,lastZ:4,windup:0,investigate:0};
 const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
 let health=100;
@@ -423,6 +476,7 @@ function updateRaptor(dt,isRunning,isCrouching){
   }
  }
  animateRaptor(dt,raptorMoving);
+ animateExternalRaptor(raptorMoving);
  raptorRoot.position.set(raptor.x,Math.sin(raptorGait*2)*(raptorMoving?.035:.008),raptor.z);
  raptor.attackCooldown=Math.max(0,raptor.attackCooldown-dt);
  if(raptor.windup>0){
