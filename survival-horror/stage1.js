@@ -737,35 +737,41 @@ function move(dx,dz){
  if(passable(player.x,player.z+dz))player.z+=dz;
 }
 // Single third-person shoulder camera; no fixed camera zones or toggles.
+// Camera recovery tools: F9 resets the camera, F10 toggles bright diagnostic mode.
+let cameraDebug=false;
+const debugFill=new BABYLON.HemisphericLight('diagnostic visibility',new BABYLON.Vector3(0,1,0),scene);
+debugFill.intensity=0;
+function resetShoulderCamera(){
+ shoulderYaw=Math.PI;
+ shoulderPitch=.12;
+ const sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
+ camera.position.set(player.x-sy*3.5+cy*.5,2.5,player.z-cy*3.5-sy*.5);
+ camera.setTarget(new BABYLON.Vector3(player.x,1.4,player.z));
+}
 function updateCamera(dt){
- const distance=4.0,side=.65;
+ const distance=3.6,side=.45;
  const sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
  const focus=new BABYLON.Vector3(player.x,1.45,player.z);
- const desired=new BABYLON.Vector3(player.x-sy*distance+cy*side,2.35+Math.sin(shoulderPitch)*2.0,player.z-cy*distance-sy*side);
- const isWall=mesh=>mesh.isPickable;
- // Use multiple nearby rays to give the shoulder camera a safety margin.
+ const desired=new BABYLON.Vector3(player.x-sy*distance+cy*side,2.35+Math.sin(shoulderPitch)*1.3,player.z-cy*distance-sy*side);
+ const isWall=mesh=>mesh.isPickable&&mesh.isEnabled()&&mesh.isVisible;
  function safePosition(candidate){
-  const offsets=[[0,0,0],[.22,0,0],[-.22,0,0],[0,.22,0],[0,-.22,0]];
   const rayVector=candidate.subtract(focus),length=rayVector.length();
   if(length<.001)return candidate;
   const direction=rayVector.scale(1/length);
-  let allowed=length;
-  for(const [ox,oy,oz] of offsets){
-   const origin=focus.add(new BABYLON.Vector3(ox,oy,oz));
-   const hit=scene.pickWithRay(new BABYLON.Ray(origin,direction,length),isWall);
-   if(hit&&hit.hit)allowed=Math.min(allowed,Math.max(.55,hit.distance-.3));
+  const hit=scene.pickWithRay(new BABYLON.Ray(focus,direction,length),isWall);
+  if(hit?.hit&&hit.distance<length){
+   return focus.add(direction.scale(Math.max(.75,hit.distance-.35)));
   }
-  return focus.add(direction.scale(allowed));
+  return candidate;
  }
  const target=safePosition(desired);
- // Smooth outward motion; when a wall intervenes, snap inward instead of interpolating through it.
  const oldDistance=BABYLON.Vector3.Distance(focus,camera.position);
  const newDistance=BABYLON.Vector3.Distance(focus,target);
  const alpha=newDistance<oldDistance?1:Math.min(1,dt*10);
- const candidate=BABYLON.Vector3.Lerp(camera.position,target,alpha);
- camera.position=safePosition(candidate);
- camera.setTarget(new BABYLON.Vector3(player.x+sy*2.6,1.35+Math.sin(shoulderPitch)*2.2,player.z+cy*2.6));
+ camera.position=safePosition(BABYLON.Vector3.Lerp(camera.position,target,alpha));
+ camera.setTarget(new BABYLON.Vector3(player.x+sy*2.6,1.35+Math.sin(shoulderPitch)*1.5,player.z+cy*2.6));
 }
+
 function load(){
  try{
   const data=JSON.parse(localStorage.getItem('blacksite-raptor-stage1-v1')||'null');
@@ -852,6 +858,16 @@ function update(dt){
  const pulse=.83+.17*Math.sin(performance.now()*.0035);
  light.intensity=7.2+1.6*pulse;
  beacon.emissiveColor=new BABYLON.Color3(.8,.12,.09).scale(.7+.3*pulse);
+ if(pressed('F9')&&!update.f9Held){resetShoulderCamera();notify('КАМЕРА СБРОШЕНА — F9',1.5)}
+ update.f9Held=pressed('F9');
+ if(pressed('F10')&&!update.f10Held){
+  cameraDebug=!cameraDebug;
+  debugFill.intensity=cameraDebug?2.2:0;
+  visualPipeline.bloomEnabled=!cameraDebug;
+  scene.imageProcessingConfiguration.exposure=cameraDebug?1.45:.92;
+  notify(cameraDebug?'ДИАГНОСТИКА: ЯРКИЙ РЕЖИМ':'ДИАГНОСТИКА ВЫКЛЮЧЕНА',2);
+ }
+ update.f10Held=pressed('F10');
  const p=gamepad(),button=i=>!!p?.buttons[i]?.pressed;
  // Left stick / WASD moves relative to the shoulder camera.
  let mx=Number(pressed('KeyD')||pressed('ArrowRight'))-Number(pressed('KeyA')||pressed('ArrowLeft'))+dz(p?.axes[0]||0);
