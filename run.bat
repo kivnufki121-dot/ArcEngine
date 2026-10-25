@@ -1,6 +1,6 @@
 @echo off
 rem ==========================================================================
-rem  ArcEngine - local launch
+rem  BLACKSITE: RAPTOR - local launch
 rem  Starts the no-cache dev server (tools/dev-server.mjs) and opens a browser.
 rem  Needs Node.js only - the kit itself has zero dependencies.
 rem
@@ -28,7 +28,7 @@ for %%A in (%*) do (
     if /i "%%A"=="--no-open" set "OPEN_ARG=--no-open"
 )
 
-node tools\dev-server.mjs %PORT_ARG% %OPEN_ARG%
+node tools\dev-server.mjs %PORT_ARG% %OPEN_ARG% --open-path=/survival-horror/index.html
 
 if errorlevel 1 (
     echo.
