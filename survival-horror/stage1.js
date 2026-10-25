@@ -434,6 +434,15 @@ async function loadExternalRaptor(){
    });
    window.__blacksiteGltfLoader=true;
   }
+  // Compatibility bridge for ArcEngine's bundled Babylon core and newer glTF loader.
+  // The newer loader calls this Scene method, absent in some older Babylon builds.
+  if(typeof scene._executeWithBlockedEntityCollection!=='function'){
+   scene._executeWithBlockedEntityCollection=function(callback){
+    const wasBlocked=this._blockEntityCollection;
+    this._blockEntityCollection=true;
+    try{return callback()}finally{this._blockEntityCollection=wasBlocked}
+   };
+  }
   const blob=new Blob([bytes],{type:'model/gltf-binary'});
   const blobUrl=URL.createObjectURL(blob);
   let result;
