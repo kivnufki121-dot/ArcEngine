@@ -17,6 +17,28 @@ const camera=new BABYLON.FreeCamera('third person shoulder camera',new BABYLON.V
 camera.fov=.85;camera.minZ=.1;scene.activeCamera=camera;
 const material=(name,hex,glow=0)=>{const m=new BABYLON.StandardMaterial(name,scene);m.diffuseColor=BABYLON.Color3.FromHexString(hex);m.specularColor=new BABYLON.Color3(.07,.08,.09);if(glow)m.emissiveColor=m.diffuseColor.scale(glow);return m};
 const wall=material('wall','#435653'),floor=material('floor','#273632'),steel=material('steel','#667b77'),dark=material('dark','#182725'),green=material('keycard','#65ffba',.75),red=material('locked','#e26150',.65),gold=material('save lamp','#d5bc7e',.6),heroMat=material('survivor','#90b2a8');
+// Visual Overhaul 2.0 — renderer-only pass, separate from collision and gameplay.
+scene.imageProcessingConfiguration.toneMappingEnabled=true;
+scene.imageProcessingConfiguration.toneMappingType=BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
+scene.imageProcessingConfiguration.exposure=1.15;
+scene.imageProcessingConfiguration.contrast=1.25;
+const visualPipeline=new BABYLON.DefaultRenderingPipeline('blacksite cinematic',true,scene,[camera]);
+visualPipeline.fxaaEnabled=true;
+visualPipeline.bloomEnabled=true;
+visualPipeline.bloomThreshold=.72;
+visualPipeline.bloomWeight=.23;
+visualPipeline.bloomKernel=42;
+visualPipeline.samples=2;
+const visualMetal=material('brushed industrial steel','#39474c');
+visualMetal.specularColor=new BABYLON.Color3(.48,.54,.56);
+visualMetal.specularPower=88;
+const visualRubber=material('rubber seals','#141b1e');
+visualRubber.specularPower=12;
+floor.specularColor=new BABYLON.Color3(.22,.3,.32);
+floor.specularPower=70;
+steel.specularColor=new BABYLON.Color3(.45,.52,.55);
+steel.specularPower=80;
+wall.specularPower=28;
 const colliders=[];
 function block(name,x,y,z,w,h,d,mat,solid=false){
  const m=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
@@ -103,6 +125,31 @@ for(const [x,z] of [[-5,-13.7],[5,-13.7],[-5,13.7],[5,13.7]]){
 block('exit frame top',0,3.78,-14.3,4.2,.3,.55,steel);
 for(const x of [-2.1,2.1])block('exit frame pillar',x,1.85,-14.3,.3,3.7,.55,steel);
 block('exit warning indicator',0,3.48,-14.01,1.1,.16,.09,hazard);
+// Decorative geometry is intentionally non-colliding and non-pickable.
+for(const z of [-12,-6,0,6,12]){
+ for(const x of [-15.95,15.95]){
+  block('industrial wall ribs',x,1.8,z,.22,3.45,.3,visualMetal);
+  block('rib foot',x,.18,z,.48,.23,.54,visualRubber);
+ }
+ for(const x of [-1.15,1.15]){
+  block('floor metal panel',x,.018,z,1.9,.025,2.45,visualMetal);
+  block('floor grating seam',x,.036,z,1.86,.012,.065,visualRubber);
+ }
+}
+for(const x of [-14,-9,9,14]){
+ for(const z of [-13.7,13.7]){
+  block('service wall console',x,1.75,z,.9,1.2,.12,visualMetal);
+  block('console display',x,1.9,z-.09,.7,.57,.04,glass);
+  block('console warning stripe',x,1.33,z-.13,.78,.055,.045,hazard);
+ }
+}
+for(const z of [-10,-4,2,8]){
+ block('ceiling ventilation',0,3.84,z,1.6,.09,1.1,visualMetal);
+ for(const x of [-.56,-.28,0,.28,.56])block('vent slat',x,3.76,z,.075,.05,.94,visualRubber);
+}
+scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;
+scene.fogDensity=.012;
+scene.fogColor=new BABYLON.Color3(.045,.065,.074);
 const atmosphereLight=new BABYLON.PointLight('cold corridor fill',new BABYLON.Vector3(0,3.5,1),scene);
 atmosphereLight.diffuse=new BABYLON.Color3(.4,.75,1);
 atmosphereLight.intensity=2.8;atmosphereLight.range=18;
@@ -553,7 +600,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Цель: '+currentObjective()+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':raptor.mode==='search'?'ИЩЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 1.9: хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 2.0 Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;survival.ammoCollected=false;survival.extraMedCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;raptor.windup=0;raptor.investigate=0;raptor.stunned=0;raptor.path=[];raptor.pathTimer=0;raptor.mode='patrol';raptorRoot.scaling.y=1;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
