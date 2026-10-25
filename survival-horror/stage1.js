@@ -195,7 +195,7 @@ for(const side of [-1,1]){
  raptorPart('sickle claw',.13,.08,.3,side*.25,.1,-.14,raptorFeather);
 }
 for(let i=0;i<4;i++)raptorPart('tail feathers',.16,.13,.53,0,1.04,.86+i*.34,raptorCoat);
-const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0};
+const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0};
 const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
 let health=100;
 // Grid search prevents the predator from trying to walk through walls.
@@ -234,6 +234,8 @@ function raptorPath(startX,startZ,targetX,targetZ){
  return path;
 }
 function updateRaptor(dt,isRunning,isCrouching){
+ if(raptor.health<=0){raptorRoot.setEnabled(false);return}
+ raptor.stunned=Math.max(0,raptor.stunned-dt);
  const distance=Math.hypot(player.x-raptor.x,player.z-raptor.z);
  const hearingRadius=isRunning?10:isCrouching?3:6;
  if(distance<hearingRadius)raptor.alert=5;
@@ -254,7 +256,7 @@ function updateRaptor(dt,isRunning,isCrouching){
   const [wx,wz]=raptor.path[0],dx=wx-raptor.x,dz=wz-raptor.z,dist=Math.hypot(dx,dz);
   if(dist<.24)raptor.path.shift();
   else{
-   const speed=raptor.mode==='chase'?2.15:1.0,step=Math.min(dist,speed*dt);
+   const speed=raptor.stunned>0?0:(raptor.mode==='chase'?2.15:1.0),step=Math.min(dist,speed*dt);
    const nx=raptor.x+dx/dist*step,nz=raptor.z+dz/dist*step;
    if(passable(nx,raptor.z))raptor.x=nx;
    if(passable(raptor.x,nz))raptor.z=nz;
@@ -269,6 +271,54 @@ function updateRaptor(dt,isRunning,isCrouching){
   else notify('УКЛОНЕНИЕ ОТ АТАКИ!',1.1);
   if(health===0){health=100;player.x=-10;player.z=10;raptor.alert=0;notify('ГЕРОИНЯ РАНЕНА — ВОЗВРАТ В НАЧАЛО',4)}
  }
+}
+// v0.5: small isolated combat module; movement and shoulder camera are unchanged.
+const weapon={ammo:8,capacity:8,reserve:24,fireCooldown:0,reloadTimer:0,fireHeld:false,reloadHeld:false,shots:0};
+const muzzleLight=new BABYLON.PointLight('pistol muzzle flash',new BABYLON.Vector3(0,1.4,0),scene);
+muzzleLight.diffuse=new BABYLON.Color3(1,.72,.32);muzzleLight.range=5;muzzleLight.intensity=0;
+const gunMat=material('pistol steel','#444a52'),gunGrip=material('pistol grip','#171c23');
+heroBox('holstered sidearm grip',.12,.28,.18,.33,.91,-.05,gunGrip);
+heroBox('holstered sidearm barrel',.13,.11,.35,.33,1.01,-.17,gunMat);
+function firePistol(){
+ if(weapon.fireCooldown>0||weapon.reloadTimer>0)return;
+ if(weapon.ammo<=0){notify('МАГАЗИН ПУСТ — R / Y ПЕРЕЗАРЯДКА',1.4);return}
+ weapon.ammo--;weapon.shots++;weapon.fireCooldown=.26;
+ muzzleLight.position.set(player.x,1.45,player.z);
+ muzzleLight.intensity=5;
+ // The gun fires in the approved camera aim direction, not movement direction.
+ const dx=raptor.x-player.x,dz=raptor.z-player.z,dist=Math.hypot(dx,dz);
+ const forwardX=Math.sin(shoulderYaw),forwardZ=Math.cos(shoulderYaw);
+ const aligned=dist>0&&(dx*forwardX+dz*forwardZ)/dist>.93;
+ // Solid walls block shots, even when the target is directly behind one.
+ const wallHit=scene.pickWithRay(new BABYLON.Ray(new BABYLON.Vector3(player.x,1.35,player.z),new BABYLON.Vector3(dx,0,dz).normalize(),dist),mesh=>mesh.isPickable);
+ if(raptor.health>0&&dist<18&&aligned&&!(wallHit?.hit&&wallHit.distance<dist-.25)){
+  raptor.health=Math.max(0,raptor.health-25);
+  raptor.stunned=.45;raptor.alert=8;raptor.pathTimer=0;
+  notify(raptor.health===0?'ХИЩНИК НЕЙТРАЛИЗОВАН':'ПОПАДАНИЕ! ЗДОРОВЬЕ ХИЩНИКА: '+raptor.health+'%',1.2);
+ }else{
+  raptor.alert=6;notify('ВЫСТРЕЛ',.5);
+ }
+}
+function updateWeapon(dt,p){
+ const button=i=>!!p?.buttons[i]?.pressed;
+ weapon.fireCooldown=Math.max(0,weapon.fireCooldown-dt);
+ muzzleLight.intensity=Math.max(0,muzzleLight.intensity-dt*45);
+ if(weapon.reloadTimer>0){
+  weapon.reloadTimer-=dt;
+  if(weapon.reloadTimer<=0){
+   const amount=Math.min(weapon.capacity-weapon.ammo,weapon.reserve);
+   weapon.ammo+=amount;weapon.reserve-=amount;
+   notify('ПЕРЕЗАРЯДКА ЗАВЕРШЕНА',.8);
+  }
+ }
+ const fire=pressed('KeyF')||button(7);
+ if(fire&&!weapon.fireHeld)firePistol();
+ weapon.fireHeld=fire;
+ const reload=pressed('KeyR')||button(3);
+ if(reload&&!weapon.reloadHeld&&weapon.reloadTimer<=0&&weapon.ammo<weapon.capacity&&weapon.reserve>0){
+  weapon.reloadTimer=1.2;notify('ПЕРЕЗАРЯДКА...',1.2);
+ }
+ weapon.reloadHeld=reload;
 }
 const player={x:-10,z:10,heading:0,key:false,power:false,door:false,stamina:100,crouch:false,alive:true};
 const controls=new Set();
@@ -410,6 +460,7 @@ function update(dt){
   strand.rotation.z=(i-3.5)*.06+Math.sin(walkCycle*.6+i*.6)*.035*walkBlend;
  }
  updateRaptor(dt,running&&length>.1,crouch);
+ updateWeapon(dt,p);
  const action=pressed('KeyE')||button(0);
  if(action&&!prevAction)interact();
  prevAction=action;
@@ -419,10 +470,10 @@ function update(dt){
  updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
- $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
+ $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.4.2: исправлено пересечение камерой стен. Динозавр патрулирует, обнаруживает героиню и атакует.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.5: пистолет, ограниченные патроны, перезарядка и попадания по хищнику. F / RT — стрелять, R / Y — перезарядить.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
