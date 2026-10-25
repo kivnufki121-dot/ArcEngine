@@ -50,6 +50,7 @@ block('terminal screen',10,2.15,-10.5,.9,.55,.09,green);
 const save=block('save station',-11,1,-11,1.6,2,1,steel);
 block('save station light',-11,2.1,-11,1,.15,.4,gold);
 // Sector A-01 visual pass (v0.3): all scenery is non-colliding, preserving the tested routes.
+const cyan=material('cyan accessories','#18d9f4',.9);
 const hazard=material('warning amber','#ffad46',.72);
 const cold=material('clinical light','#a5eaff',.9);
 const glass=material('smoked display glass','#12323a',.2);
@@ -108,7 +109,7 @@ farLight.diffuse=new BABYLON.Color3(.35,.85,.88);farLight.intensity=2.2;farLight
 // Geometry-only preview: detailed mesh, skinning, hair strands and cloth simulation come later.
 const character=new BABYLON.TransformNode('heroine root',scene);
 const suit=material('black armored suit','#15131f'),armor=material('violet armor','#272237');
-const neon=material('magenta luminous piping','#ff2b9f',.95),cyan=material('cyan accessories','#18d9f4',.9);
+const neon=material('magenta luminous piping','#ff2b9f',.95);
 const skin=material('skin','#e5b4ac'),hair=material('black violet hair','#16152d'),hairPurple=material('purple hair','#8c35d6'),hairBlue=material('blue hair','#176bd0');
 const boot=material('heavy boots','#15131b');
 function heroBox(name,w,h,d,x,y,z,mat,parent=character){
