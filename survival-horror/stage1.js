@@ -10,12 +10,12 @@ engine.setHardwareScalingLevel(Math.max(1,(devicePixelRatio||1)/1.5));
 const scene=new BABYLON.Scene(engine);
 const diagnosticStamp=document.createElement('div');
 diagnosticStamp.id='blacksite-build-stamp';
-diagnosticStamp.textContent='CAMERA TEST 02 | F8: OVERVIEW | F10: LIGHT';
+diagnosticStamp.textContent='VISIBILITY FIX 03 | SAFE RENDER';
 diagnosticStamp.style.cssText='position:fixed;right:12px;top:42px;z-index:10000;color:#fff;background:#ac2450;padding:8px 12px;font:bold 13px Arial;pointer-events:none';
 document.body.appendChild(diagnosticStamp);
 scene.clearColor=new BABYLON.Color4(.025,.035,.043,1);
 scene.ambientColor=new BABYLON.Color3(.16,.2,.22);
-const hemi=new BABYLON.HemisphericLight('fill',new BABYLON.Vector3(0,1,0),scene);hemi.intensity=.88;
+const hemi=new BABYLON.HemisphericLight('fill',new BABYLON.Vector3(0,1,0),scene);hemi.intensity=1.6;
 hemi.groundColor=new BABYLON.Color3(.10,.13,.16);
 const light=new BABYLON.PointLight('emergency',new BABYLON.Vector3(0,4,0),scene);
 light.diffuse=new BABYLON.Color3(.95,.3,.2);light.intensity=8;light.range=21;
@@ -26,13 +26,13 @@ camera.fov=.85;camera.minZ=.1;scene.activeCamera=camera;
 const material=(name,hex,glow=0)=>{const m=new BABYLON.StandardMaterial(name,scene);m.diffuseColor=BABYLON.Color3.FromHexString(hex);m.specularColor=new BABYLON.Color3(.07,.08,.09);if(glow)m.emissiveColor=m.diffuseColor.scale(glow);return m};
 const wall=material('wall','#435653'),floor=material('floor','#273632'),steel=material('steel','#667b77'),dark=material('dark','#182725'),green=material('keycard','#65ffba',.75),red=material('locked','#e26150',.65),gold=material('save lamp','#d5bc7e',.6),heroMat=material('survivor','#90b2a8');
 // Visual Overhaul 2.0 — renderer-only pass, separate from collision and gameplay.
-scene.imageProcessingConfiguration.toneMappingEnabled=true;
+scene.imageProcessingConfiguration.toneMappingEnabled=false;
 scene.imageProcessingConfiguration.toneMappingType=BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-scene.imageProcessingConfiguration.exposure=.92;
-scene.imageProcessingConfiguration.contrast=1.12;
+scene.imageProcessingConfiguration.exposure=1.3;
+scene.imageProcessingConfiguration.contrast=1;
 const visualPipeline=new BABYLON.DefaultRenderingPipeline('blacksite cinematic',true,scene,[camera]);
 visualPipeline.fxaaEnabled=true;
-visualPipeline.bloomEnabled=true;
+visualPipeline.bloomEnabled=false;
 visualPipeline.bloomThreshold=1.18;
 visualPipeline.bloomWeight=.09;
 visualPipeline.bloomKernel=42;
@@ -745,7 +745,7 @@ function move(dx,dz){
 // Camera recovery tools: F9 resets the camera, F10 toggles bright diagnostic mode.
 let cameraDebug=false,cameraOverview=false;
 const debugFill=new BABYLON.HemisphericLight('diagnostic visibility',new BABYLON.Vector3(0,1,0),scene);
-debugFill.intensity=0;
+debugFill.intensity=.7;
 function resetShoulderCamera(){
  shoulderYaw=Math.PI;
  shoulderPitch=.12;
@@ -861,7 +861,7 @@ function interact(){
 function update(dt){
  // Deterministic, subtle emergency lighting pulse, no gameplay dependency.
  const pulse=.83+.17*Math.sin(performance.now()*.0035);
- light.intensity=7.2+1.6*pulse;
+ light.intensity=3.5+.5*pulse;
  beacon.emissiveColor=new BABYLON.Color3(.8,.12,.09).scale(.7+.3*pulse);
  if(pressed('F8')&&!update.f8Held){
   cameraOverview=!cameraOverview;
@@ -872,9 +872,9 @@ function update(dt){
  update.f9Held=pressed('F9');
  if(pressed('F10')&&!update.f10Held){
   cameraDebug=!cameraDebug;
-  debugFill.intensity=cameraDebug?2.2:0;
+  debugFill.intensity=cameraDebug?2.2:.7;
   visualPipeline.bloomEnabled=!cameraDebug;
-  scene.imageProcessingConfiguration.exposure=cameraDebug?1.45:.92;
+  scene.imageProcessingConfiguration.exposure=cameraDebug?1.65:1.3;
   notify(cameraDebug?'ДИАГНОСТИКА: ЯРКИЙ РЕЖИМ':'ДИАГНОСТИКА ВЫКЛЮЧЕНА',2);
  }
  update.f10Held=pressed('F10');
