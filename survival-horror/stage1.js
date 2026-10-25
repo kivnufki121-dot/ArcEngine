@@ -414,7 +414,7 @@ async function loadExternalRaptor(){
  const assetUrl='./assets/raptor/velociraptor.glb';
  try{
   const probe=await fetch(assetUrl,{method:'HEAD'});
-  if(!probe.ok||!probe.headers.get('content-type')?.includes('model')&&Number(probe.headers.get('content-length')||0)<1000)return;
+  if(!probe.ok)return;
   if(!BABYLON.SceneLoader.IsPluginForExtensionAvailable('.glb')){
    await new Promise((resolve,reject)=>{
     const script=document.createElement('script');
@@ -428,17 +428,19 @@ async function loadExternalRaptor(){
    if(!mesh.parent)mesh.parent=visual;
    mesh.isPickable=false;
   }
-  const bounds=visual.getHierarchyBoundingVectors();
+  visual.computeWorldMatrix(true);
+  const bounds=visual.getHierarchyBoundingVectors(true);
   const dimensions=bounds.max.subtract(bounds.min);
   const length=Math.max(dimensions.x,dimensions.z,.001);
   visual.scaling.scaleInPlace(2.5/length);
+  visual.position.y=-bounds.min.y*visual.scaling.y;
   visual.parent=raptorRoot;
   visual.rotation.y=Math.PI;
   const groups=result.animationGroups||[];
   const findGroup=(words)=>groups.find(g=>words.some(word=>g.name.toLowerCase().includes(word)));
   const idle=findGroup(['idle','breath'])||groups[0];
-  const walk=findGroup(['walk','run','locomotion'])||idle;
-  const attack=findGroup(['attack','bite'])||walk;
+  const walk=findGroup(['walk','jog','sprint','run','locomotion'])||idle;
+  const attack=findGroup(['bite','attack','tackle','leap'])||walk;
   for(const group of groups)group.stop();
   if(idle)idle.start(true);
   externalRaptor={visual,groups,idle,walk,attack,current:idle};
