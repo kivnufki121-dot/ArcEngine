@@ -12,6 +12,7 @@ class PlayerController {
         this.previousJump = false;
         this.moving = false;
         this.running = false;
+        this.crouching = false;
     }
 
     update(dt, input) {
@@ -23,8 +24,9 @@ class PlayerController {
         const forward = { x: Math.cos(c.azimuth), y: Math.sin(c.azimuth) };
         const vx = right.x * input.moveX - forward.x * input.moveY;
         const vy = right.y * input.moveX - forward.y * input.moveY;
-        const run = input.run && moving;
-        const targetSpeed = moving ? (run ? 260 : 165) * magnitude : 0;
+        const crouching = !!input.crouch && !this.jumping;
+        const run = !!input.run && moving && !crouching;
+        const targetSpeed = moving ? (crouching ? 85 : run ? 260 : 165) * magnitude : 0;
         const response = 1 - Math.exp(-12 * Math.max(0, dt));
         this.speed += (targetSpeed - this.speed) * response;
         if (moving) {
@@ -38,7 +40,7 @@ class PlayerController {
         const bounds = this.app.location;
         this.position.x = Math.max(0, Math.min(bounds.width, this.position.x));
         this.position.y = Math.max(0, Math.min(bounds.height, this.position.y));
-        if (input.jump && !this.previousJump && !this.jumping) {
+        if (input.jump && !this.previousJump && !this.jumping && !crouching) {
             this.jumping = true;
             this.verticalSpeed = 280;
         }
@@ -60,5 +62,6 @@ class PlayerController {
         this.app.location.placeObject(this.record);
         this.moving = moving && this.speed > 2;
         this.running = run;
+        this.crouching = crouching;
     }
 }
