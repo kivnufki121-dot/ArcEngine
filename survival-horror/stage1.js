@@ -48,6 +48,9 @@ const key=block('access keycard',-11,.75,10,1,.12,.6,green);
 const terminal=block('power terminal',10,1.4,-11,1.4,2,.8,steel);
 block('terminal screen',10,2.15,-10.5,.9,.55,.09,green);
 const save=block('save station',-11,1,-11,1.6,2,1,steel);
+const medMaterial=material('medical supplies','#f3f0dc',.18);
+const medKit=block('medical kit pickup',-8,.35,-10,.65,.38,.55,medMaterial);
+block('medical kit red mark',-8,.57,-10,.3,.055,.15,red);
 block('save station light',-11,2.1,-11,1,.15,.4,gold);
 // Sector A-01 visual pass (v0.3): all scenery is non-colliding, preserving the tested routes.
 const cyan=material('cyan accessories','#18d9f4',.9);
@@ -198,6 +201,12 @@ for(let i=0;i<4;i++)raptorPart('tail feathers',.16,.13,.53,0,1.04,.86+i*.34,rapt
 const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0};
 const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
 let health=100;
+const survival={medkits:1,kitCollected:false,healHeld:false};
+function useMedkit(){
+ if(survival.medkits<1){notify('НЕТ АПТЕЧЕК',1.2);return}
+ if(health>=100){notify('ЗДОРОВЬЕ УЖЕ ПОЛНОЕ',1.2);return}
+ survival.medkits--;health=Math.min(100,health+40);notify('АПТЕЧКА: ЗДОРОВЬЕ '+health+'%',1.6);
+}
 // Grid search prevents the predator from trying to walk through walls.
 // The grid is sampled from the exact same passable() collision test as the heroine.
 function raptorPath(startX,startZ,targetX,targetZ){
@@ -379,19 +388,25 @@ function load(){
   if(!data||data.version!==1)return false;
   Object.assign(player,{x:data.x,z:data.z,key:!!data.key,power:!!data.power,door:!!data.door,stamina:100});
   if(!passable(player.x,player.z)){player.x=-10;player.z=10}
+  health=Number.isFinite(data.health)?clamp(data.health,1,100):100;
+  survival.medkits=Number.isFinite(data.medkits)?Math.max(0,Math.floor(data.medkits)):1;
+  survival.kitCollected=!!data.kitCollected;
+  weapon.ammo=Number.isFinite(data.ammo)?clamp(data.ammo,0,weapon.capacity):8;
+  weapon.reserve=Number.isFinite(data.reserve)?Math.max(0,Math.floor(data.reserve)):24;
   sync();notify('ПРОГРЕСС ЗАГРУЖЕН');return true;
  }catch(e){notify('НЕ УДАЛОСЬ ЗАГРУЗИТЬ СОХРАНЕНИЕ');return false}
 }
 function sync(){
- key.setEnabled(!player.key);door.setEnabled(!player.door);doorCollider.active=!player.door;
+ key.setEnabled(!player.key);door.setEnabled(!player.door);doorCollider.active=!player.door;medKit.setEnabled(!survival.kitCollected);
 }
 function saveProgress(){
  try{
-  localStorage.setItem('blacksite-raptor-stage1-v1',JSON.stringify({version:1,x:player.x,z:player.z,key:player.key,power:player.power,door:player.door}));
+  localStorage.setItem('blacksite-raptor-stage1-v1',JSON.stringify({version:1,x:player.x,z:player.z,key:player.key,power:player.power,door:player.door,health,medkits:survival.medkits,kitCollected:survival.kitCollected,ammo:weapon.ammo,reserve:weapon.reserve}));
   notify('СОХРАНЕНО В БЕЗОПАСНОЙ КОМНАТЕ');
  }catch(e){notify('СОХРАНЕНИЕ НЕДОСТУПНО')}
 }
 function interact(){
+ if(!survival.kitCollected&&near(-8,-10,1.8)){survival.kitCollected=true;survival.medkits++;sync();notify('ПОЛУЧЕНА АПТЕЧКА (+1)');return}
  if(!player.key&&near(-11,10)){player.key=true;sync();notify('ПОЛУЧЕНА КЛЮЧ-КАРТА');return}
  if(near(10,-11)){if(!player.key){notify('ТРЕБУЕТСЯ КЛЮЧ-КАРТА');return}player.power=true;notify('ПИТАНИЕ ШЛЮЗА ВОССТАНОВЛЕНО');return}
  if(near(-11,-11)){saveProgress();return}
@@ -461,6 +476,9 @@ function update(dt){
  }
  updateRaptor(dt,running&&length>.1,crouch);
  updateWeapon(dt,p);
+ const heal=pressed('KeyH')||button(4);
+ if(heal&&!survival.healHeld)useMedkit();
+ survival.healHeld=heal;
  const action=pressed('KeyE')||button(0);
  if(action&&!prevAction)interact();
  prevAction=action;
@@ -470,11 +488,11 @@ function update(dt){
  updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
- $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
+ $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.5: пистолет, ограниченные патроны, перезарядка и попадания по хищнику. F / RT — стрелять, R / Y — перезарядить.</small></p>';
-$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.6: аптечки и сохранение ресурсов. E / A — подобрать аптечку, H / LB — использовать (+40 здоровья). F / RT — стрелять, R / Y — перезарядить.</small></p>';
+$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
 engine.runRenderLoop(()=>{
