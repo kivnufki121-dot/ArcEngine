@@ -20,7 +20,7 @@ const wall=material('wall','#435653'),floor=material('floor','#273632'),steel=ma
 const colliders=[];
 function block(name,x,y,z,w,h,d,mat,solid=false){
  const m=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
- m.position.set(x,y,z);m.material=mat;m.isPickable=false;
+ m.position.set(x,y,z);m.material=mat;m.isPickable=solid;
  if(solid)colliders.push({x,z,w,d,active:true,name});
  return m;
 }
@@ -124,7 +124,7 @@ function update(dt){
  shoulderYaw+=dz(p?.axes[2]||0)*dt*2.6;
  shoulderPitch=clamp(shoulderPitch-dz(p?.axes[3]||0)*dt*1.5,-.35,.65);
  const sx=mx,sz=mz,sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
- mx=cy*sx-sy*sz;
+ mx=-cy*sx+sy*sz;
  mz=-sy*sx-cy*sz;
  const crouch=pressed('ControlLeft')||pressed('ControlRight')||button(1);
  const running=(pressed('ShiftLeft')||pressed('ShiftRight')||button(10))&&!crouch&&player.stamina>1;
