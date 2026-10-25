@@ -197,6 +197,73 @@ atmosphereLight.diffuse=new BABYLON.Color3(.4,.75,1);
 atmosphereLight.intensity=2.8;atmosphereLight.range=18;
 const farLight=new BABYLON.PointLight('storage fill',new BABYLON.Vector3(-10,3.1,8),scene);
 farLight.diffuse=new BABYLON.Color3(.35,.85,.88);farLight.intensity=2.2;farLight.range=12;
+// Atmospheric environment pass: procedural wet patches, metalwork, floating dust,
+// physically plausible pools of light. All objects are decorative/non-colliding.
+const wetMat=new BABYLON.StandardMaterial('damp floor reflections',scene);
+wetMat.diffuseColor=new BABYLON.Color3(.035,.065,.075);
+wetMat.specularColor=new BABYLON.Color3(.9,.95,1);
+wetMat.specularPower=128;wetMat.alpha=.45;
+wetMat.backFaceCulling=false;
+const scratchMat=material('worn metal edge highlights','#73858a');
+scratchMat.specularColor=new BABYLON.Color3(.65,.7,.72);
+scratchMat.specularPower=96;
+const grime=material('floor grime','#121c1d');
+grime.alpha=.38;
+let scenerySeed=89177;
+const sceneryRand=()=>{scenerySeed=(Math.imul(scenerySeed,1664525)+1013904223)>>>0;return scenerySeed/4294967296};
+for(let i=0;i<45;i++){
+ const x=-15+sceneryRand()*30,z=-13+sceneryRand()*26;
+ const w=.4+sceneryRand()*1.65,d=.25+sceneryRand()*1.4;
+ const patch=BABYLON.MeshBuilder.CreateDisc('damp floor stain',{radius:1,tessellation:20},scene);
+ patch.position.set(x,.032+i*.00003,z);
+ patch.rotation.x=Math.PI/2;patch.scaling.set(w,d,1);
+ patch.material=i%4===0?grime:wetMat;patch.isPickable=false;
+}
+for(let i=0;i<38;i++){
+ const x=-15.4+sceneryRand()*30.8,z=-13.4+sceneryRand()*26.8;
+ const size=.08+sceneryRand()*.22;
+ block('floor scattered metal fragment',x,.045,z,size,.035,size*.55,i%3?scratchMat:visualRubber);
+}
+for(const x of [-15.2,-8,8,15.2]){
+ for(const z of [-11,-5,1,7,12]){
+  block('service duct',x,3.64,z,.42,.19,2.4,visualMetal);
+  block('duct lip',x,3.5,z-1.13,.5,.11,.09,scratchMat);
+  block('duct lip',x,3.5,z+1.13,.5,.11,.09,scratchMat);
+  for(let k=-1;k<=1;k++)block('duct clasp',x,3.53,z+k*.8,.52,.08,.055,visualRubber);
+ }
+}
+const coldPoolPositions=[[-11,3.2,9],[11,3.2,9],[-11,3.2,-8],[11,3.2,-8]];
+for(let i=0;i<coldPoolPositions.length;i++){
+ const [x,y,z]=coldPoolPositions[i];
+ const fixture=block('cold light fixture',x,y+.15,z,.85,.15,.3,steel);
+ block('cold light tube',x,y,z,.62,.05,.12,cold);
+ const pool=new BABYLON.PointLight('localized industrial light '+i,new BABYLON.Vector3(x,y-.1,z),scene);
+ pool.diffuse=new BABYLON.Color3(.42,.69,.85);pool.intensity=1.15;pool.range=8;
+}
+const dustParticles=new BABYLON.ParticleSystem('airborne lab dust',150,scene);
+const dustTexture=new BABYLON.DynamicTexture('dust sprite',{width:32,height:32},scene,false);
+const dustCtx=dustTexture.getContext();
+const dustGradient=dustCtx.createRadialGradient(16,16,0,16,16,16);
+dustGradient.addColorStop(0,'rgba(255,255,255,.8)');
+dustGradient.addColorStop(.35,'rgba(220,240,255,.35)');
+dustGradient.addColorStop(1,'rgba(255,255,255,0)');
+dustCtx.fillStyle=dustGradient;dustCtx.fillRect(0,0,32,32);dustTexture.update();
+dustParticles.particleTexture=dustTexture;
+dustParticles.emitter=new BABYLON.Vector3(0,1.5,0);
+dustParticles.minEmitBox=new BABYLON.Vector3(-15,-1.3,-13);
+dustParticles.maxEmitBox=new BABYLON.Vector3(15,1.3,13);
+dustParticles.color1=new BABYLON.Color4(.7,.8,.84,.13);
+dustParticles.color2=new BABYLON.Color4(.65,.78,.85,.07);
+dustParticles.colorDead=new BABYLON.Color4(.5,.6,.65,0);
+dustParticles.minSize=.015;dustParticles.maxSize=.045;
+dustParticles.minLifeTime=6;dustParticles.maxLifeTime=12;
+dustParticles.emitRate=9;
+dustParticles.blendMode=BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+dustParticles.gravity=new BABYLON.Vector3(0,.008,0);
+dustParticles.direction1=new BABYLON.Vector3(-.08,.02,-.08);
+dustParticles.direction2=new BABYLON.Vector3(.08,.08,.08);
+dustParticles.minEmitPower=.01;dustParticles.maxEmitPower=.04;
+dustParticles.updateSpeed=.02;dustParticles.start();
 // Stylized low-poly playable heroine based on the supplied front/side/back turnaround.
 // Geometry-only preview: detailed mesh, skinning, hair strands and cloth simulation come later.
 const character=new BABYLON.TransformNode('heroine root',scene);
@@ -767,7 +834,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Цель: '+currentObjective()+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':raptor.mode==='search'?'ИЩЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 3.0 Story Edition: вступительные и финальные катсцены, завершение сюжетной главы. Creature Visual Pass: сглаженная анатомия раптора, когти, чешуя, зубы, оперение. Visual Edition: процедурные текстуры металла, маркировка Helix Meridian, ACES, bloom, сглаживание, туман и лабораторный декор. Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 3.1 Atmosphere Edition: влажные полы, локальные светильники, промышленный декор, пыль в воздухе. Story Edition: вступительные и финальные катсцены, завершение сюжетной главы. Creature Visual Pass: сглаженная анатомия раптора, когти, чешуя, зубы, оперение. Visual Edition: процедурные текстуры металла, маркировка Helix Meridian, ACES, bloom, сглаживание, туман и лабораторный декор. Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;survival.ammoCollected=false;survival.extraMedCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;raptor.windup=0;raptor.investigate=0;raptor.stunned=0;raptor.path=[];raptor.pathTimer=0;raptor.mode='patrol';raptorRoot.scaling.y=1;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=false;intro.style.display='none';introSequence()};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
