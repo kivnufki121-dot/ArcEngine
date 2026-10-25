@@ -49,6 +49,61 @@ const terminal=block('power terminal',10,1.4,-11,1.4,2,.8,steel);
 block('terminal screen',10,2.15,-10.5,.9,.55,.09,green);
 const save=block('save station',-11,1,-11,1.6,2,1,steel);
 block('save station light',-11,2.1,-11,1,.15,.4,gold);
+// Sector A-01 visual pass (v0.3): all scenery is non-colliding, preserving the tested routes.
+const hazard=material('warning amber','#ffad46',.72);
+const cold=material('clinical light','#a5eaff',.9);
+const glass=material('smoked display glass','#12323a',.2);
+const pipe=material('utility conduit','#263b41');
+const trim=material('panel seam','#111d21');
+const beacon=material('alarm lens','#ff493e',.85);
+const emergencyLamps=[];
+for(const z of [-12,-6,0,6,12]){
+ // Ceiling light banks and inset corridor runners.
+ block('ceiling rail',0,3.85,z,4.5,.16,.22,steel);
+ for(const x of [-1.65,1.65]){
+  block('ceiling diffuser',x,3.72,z,.27,.08,1.6,cold);
+  block('floor guide strip',x,.025,z,.065,.045,2.3,cyan);
+ }
+}
+for(const x of [-15.7,15.7]){
+ for(const z of [-10,0,10]){
+  block('service pipe',x,3.32,z,.14,.14,7.5,pipe);
+  block('conduit bracket',x,3.26,z,.38,.2,.16,steel);
+  block('wall warning stripe',x,1.12,z,.09,.14,3.2,hazard);
+  block('wall identification panel',x,2.2,z,.10,.65,1.2,glass);
+ }
+}
+for(const z of [-14.55,14.55]){
+ for(const x of [-11,-5,5,11]){
+  block('wall reinforcement',x,2,z,.25,3.7,.2,steel);
+  block('lower wall inset',x,.8,z,.9,.75,.12,dark);
+  block('upper wall accent',x,3.35,z,.75,.06,.12,trim);
+ }
+}
+for(const [x,z] of [[-13,-11],[13,-11],[-13,11],[13,11]]){
+ block('workstation desk inset',x,2.04,z,1.65,.1,1.1,dark);
+ block('diagnostic monitor',x,2.43,z,.85,.48,.12,glass);
+ block('monitor status bar',x,2.39,z-.07,.64,.045,.15,cyan);
+ block('keyboard',x,2.09,z-.46,.66,.05,.24,trim);
+}
+for(const [x,z] of [[-8,-14.48],[8,-14.48],[-8,14.48],[8,14.48]]){
+ block('emergency beacon housing',x,3.24,z,.55,.25,.2,dark);
+ const lens=block('pulsing alarm beacon',x,3.23,z-.13,.36,.13,.12,beacon);
+ emergencyLamps.push(lens);
+}
+for(const [x,z] of [[-5,-13.7],[5,-13.7],[-5,13.7],[5,13.7]]){
+ block('wall-mounted emergency kit',x,1.5,z,.75,.8,.3,steel);
+ block('kit cross vertical',x,1.5,z-.17,.1,.48,.04,red);
+ block('kit cross horizontal',x,1.5,z-.18,.4,.1,.04,red);
+}
+block('exit frame top',0,3.78,-14.3,4.2,.3,.55,steel);
+for(const x of [-2.1,2.1])block('exit frame pillar',x,1.85,-14.3,.3,3.7,.55,steel);
+block('exit warning indicator',0,3.48,-14.01,1.1,.16,.09,hazard);
+const atmosphereLight=new BABYLON.PointLight('cold corridor fill',new BABYLON.Vector3(0,3.5,1),scene);
+atmosphereLight.diffuse=new BABYLON.Color3(.4,.75,1);
+atmosphereLight.intensity=2.8;atmosphereLight.range=18;
+const farLight=new BABYLON.PointLight('storage fill',new BABYLON.Vector3(-10,3.1,8),scene);
+farLight.diffuse=new BABYLON.Color3(.35,.85,.88);farLight.intensity=2.2;farLight.range=12;
 // Stylized low-poly playable heroine based on the supplied front/side/back turnaround.
 // Geometry-only preview: detailed mesh, skinning, hair strands and cloth simulation come later.
 const character=new BABYLON.TransformNode('heroine root',scene);
@@ -185,6 +240,10 @@ function interact(){
  notify('ПОБЛИЗОСТИ НЕТ ИНТЕРАКТИВНЫХ ОБЪЕКТОВ',1.4);
 }
 function update(dt){
+ // Deterministic, subtle emergency lighting pulse, no gameplay dependency.
+ const pulse=.83+.17*Math.sin(performance.now()*.0035);
+ light.intensity=10+2.5*pulse;
+ beacon.emissiveColor=new BABYLON.Color3(.8,.12,.09).scale(.7+.3*pulse);
  const p=gamepad(),button=i=>!!p?.buttons[i]?.pressed;
  // Left stick / WASD moves relative to the shoulder camera.
  let mx=Number(pressed('KeyD')||pressed('ArrowRight'))-Number(pressed('KeyA')||pressed('ArrowLeft'))+dz(p?.axes[0]||0);
@@ -250,7 +309,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.2: улучшенная броня, лицо, волосы и плавные процедурные анимации героини.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.3: атмосферная лаборатория, аварийное освещение и детализация помещений.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
