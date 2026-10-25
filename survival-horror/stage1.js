@@ -31,13 +31,12 @@ block('west boundary',-17,2,0,.65,4,30,wall,true);
 block('east boundary',17,2,0,.65,4,30,wall,true);
 // Four rooms surrounding a central corridor; door gaps face corridor.
 for(const z of [-7,7]){
- for(const x of [-9,9]){
-  block('room partition',x,2,z,14,4,.45,wall,true);
- }
+ // Partition segments leave wide traversable doorways near the centre and outer edges.
+ for(const x of [-12,12])block('room partition',x,2,z,7,4,.45,wall,true);
 }
 for(const x of [-2.4,2.4]){
- block('corridor edge',x,2,-11,.4,4,8,wall,true);
- block('corridor edge',x,2,11,.4,4,8,wall,true);
+ block('corridor edge',x,2,-11,.4,4,5,wall,true);
+ block('corridor edge',x,2,11,.4,4,5,wall,true);
 }
 for(const x of [-13,13])for(const z of [-11,11]){
  block('workstation',x,1,z,2.5,2,1.4,steel,true);
