@@ -8,6 +8,11 @@ const $=id=>document.getElementById(id), canvas=$('game');
 const engine=new BABYLON.Engine(canvas,true,{stencil:false});
 engine.setHardwareScalingLevel(Math.max(1,(devicePixelRatio||1)/1.5));
 const scene=new BABYLON.Scene(engine);
+const diagnosticStamp=document.createElement('div');
+diagnosticStamp.id='blacksite-build-stamp';
+diagnosticStamp.textContent='CAMERA TEST 02 | F8: OVERVIEW | F10: LIGHT';
+diagnosticStamp.style.cssText='position:fixed;right:12px;top:42px;z-index:10000;color:#fff;background:#ac2450;padding:8px 12px;font:bold 13px Arial;pointer-events:none';
+document.body.appendChild(diagnosticStamp);
 scene.clearColor=new BABYLON.Color4(.025,.035,.043,1);
 scene.ambientColor=new BABYLON.Color3(.16,.2,.22);
 const hemi=new BABYLON.HemisphericLight('fill',new BABYLON.Vector3(0,1,0),scene);hemi.intensity=.88;
@@ -738,7 +743,7 @@ function move(dx,dz){
 }
 // Single third-person shoulder camera; no fixed camera zones or toggles.
 // Camera recovery tools: F9 resets the camera, F10 toggles bright diagnostic mode.
-let cameraDebug=false;
+let cameraDebug=false,cameraOverview=false;
 const debugFill=new BABYLON.HemisphericLight('diagnostic visibility',new BABYLON.Vector3(0,1,0),scene);
 debugFill.intensity=0;
 function resetShoulderCamera(){
@@ -858,6 +863,11 @@ function update(dt){
  const pulse=.83+.17*Math.sin(performance.now()*.0035);
  light.intensity=7.2+1.6*pulse;
  beacon.emissiveColor=new BABYLON.Color3(.8,.12,.09).scale(.7+.3*pulse);
+ if(pressed('F8')&&!update.f8Held){
+  cameraOverview=!cameraOverview;
+  notify(cameraOverview?'ОБЗОРНАЯ КАМЕРА ВКЛЮЧЕНА':'ОБЗОРНАЯ КАМЕРА ВЫКЛЮЧЕНА',2);
+ }
+ update.f8Held=pressed('F8');
  if(pressed('F9')&&!update.f9Held){resetShoulderCamera();notify('КАМЕРА СБРОШЕНА — F9',1.5)}
  update.f9Held=pressed('F9');
  if(pressed('F10')&&!update.f10Held){
@@ -940,7 +950,10 @@ function update(dt){
  const saveKey=pressed('F5');
  if(saveKey&&!prevSave&&near(-11,-11))saveProgress();
  prevSave=saveKey;
- updateCamera(dt);
+ if(cameraOverview){
+  camera.position.set(player.x,12,player.z+12);
+  camera.setTarget(new BABYLON.Vector3(player.x,0,player.z));
+ }else updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Цель: '+currentObjective()+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':raptor.mode==='search'?'ИЩЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
