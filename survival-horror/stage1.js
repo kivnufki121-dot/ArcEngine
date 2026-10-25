@@ -330,6 +330,23 @@ function updateWeapon(dt,p){
  weapon.reloadHeld=reload;
 }
 const player={x:-10,z:10,heading:0,key:false,power:false,door:false,stamina:100,crouch:false,alive:true};
+// v0.7: three optional story terminals. No new colliders or mandatory quest steps.
+const story={read:[false,false,false]};
+const storyEntries=[
+ {x:-9,z:8,title:'АРХИВ 01 · ПРОЕКТ КАЙРОС',body:'2041 год. Остров Кайрос. Helix Meridian официально исследует восстановление вымерших видов. Секретный протокол «Раптор» запрещён к публикации.'},
+ {x:9,z:-9,title:'АРХИВ 02 · НАРУШЕНИЕ КАРАНТИНА',body:'Журнал безопасности: защитный периметр сектора A-01 нарушен. Образец D-07 реагирует на шум. Рекомендовано передвигаться тихо и избегать прямого контакта.'},
+ {x:-8,z:-8,title:'АРХИВ 03 · СИГНАЛ БЕДСТВИЯ',body:'Неизвестный сотрудник: «Если кто-то получил этот сигнал, не верьте отчётам Helix Meridian. Эвакуация была отменена до аварии. Найдите северный шлюз».'}
+];
+const storyScreens=storyEntries.map((entry,i)=>{
+ const mesh=block('story terminal '+(i+1),entry.x,1.2,entry.z,.65,.95,.2,glass);
+ block('story terminal indicator '+(i+1),entry.x,1.65,entry.z,.35,.1,.23,cyan);
+ return mesh;
+});
+function readStory(i){
+ story.read[i]=true;
+ const entry=storyEntries[i];
+ notify(entry.title+' — '+entry.body,9);
+}
 const controls=new Set();
 addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();controls.add(e.code)});
 addEventListener('keyup',e=>controls.delete(e.code));
@@ -391,6 +408,7 @@ function load(){
   health=Number.isFinite(data.health)?clamp(data.health,1,100):100;
   survival.medkits=Number.isFinite(data.medkits)?Math.max(0,Math.floor(data.medkits)):1;
   survival.kitCollected=!!data.kitCollected;
+  story.read=Array.isArray(data.storyRead)?[0,1,2].map(i=>!!data.storyRead[i]):[false,false,false];
   weapon.ammo=Number.isFinite(data.ammo)?clamp(data.ammo,0,weapon.capacity):8;
   weapon.reserve=Number.isFinite(data.reserve)?Math.max(0,Math.floor(data.reserve)):24;
   sync();notify('ПРОГРЕСС ЗАГРУЖЕН');return true;
@@ -401,11 +419,12 @@ function sync(){
 }
 function saveProgress(){
  try{
-  localStorage.setItem('blacksite-raptor-stage1-v1',JSON.stringify({version:1,x:player.x,z:player.z,key:player.key,power:player.power,door:player.door,health,medkits:survival.medkits,kitCollected:survival.kitCollected,ammo:weapon.ammo,reserve:weapon.reserve}));
+  localStorage.setItem('blacksite-raptor-stage1-v1',JSON.stringify({version:1,x:player.x,z:player.z,key:player.key,power:player.power,door:player.door,health,medkits:survival.medkits,kitCollected:survival.kitCollected,ammo:weapon.ammo,reserve:weapon.reserve,storyRead:story.read}));
   notify('СОХРАНЕНО В БЕЗОПАСНОЙ КОМНАТЕ');
  }catch(e){notify('СОХРАНЕНИЕ НЕДОСТУПНО')}
 }
 function interact(){
+ for(let i=0;i<storyEntries.length;i++)if(near(storyEntries[i].x,storyEntries[i].z,1.5)){readStory(i);return}
  if(!survival.kitCollected&&near(-8,-10,1.8)){survival.kitCollected=true;survival.medkits++;sync();notify('ПОЛУЧЕНА АПТЕЧКА (+1)');return}
  if(!player.key&&near(-11,10)){player.key=true;sync();notify('ПОЛУЧЕНА КЛЮЧ-КАРТА');return}
  if(near(10,-11)){if(!player.key){notify('ТРЕБУЕТСЯ КЛЮЧ-КАРТА');return}player.power=true;notify('ПИТАНИЕ ШЛЮЗА ВОССТАНОВЛЕНО');return}
@@ -488,11 +507,11 @@ function update(dt){
  updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
- $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
+ $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.6: аптечки и сохранение ресурсов. E / A — подобрать аптечку, H / LB — использовать (+40 здоровья). F / RT — стрелять, R / Y — перезарядить.</small></p>';
-$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.7: три сюжетных терминала с записями Helix Meridian. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
 engine.runRenderLoop(()=>{
