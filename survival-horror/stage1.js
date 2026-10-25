@@ -412,22 +412,36 @@ function animateRaptor(dt,moving){
 let externalRaptor=null;
 async function loadExternalRaptor(){
  const assetUrl='./assets/raptor/velociraptor.glb';
+ const report=(message,error)=>{
+  console.error('[BLACKSITE RAPTOR MODEL] '+message,error||'');
+  const label=document.createElement('div');
+  label.style.cssText='position:fixed;left:12px;bottom:12px;z-index:999;background:#3d1218;color:#fff;padding:10px 14px;font:14px Arial;max-width:550px;border:1px solid #e65d64';
+  label.textContent='3D-МОДЕЛЬ: '+message;document.body.appendChild(label);
+ };
  try{
-  const probe=await fetch(assetUrl,{method:'HEAD'});
-  if(!probe.ok)return;
-  if(!BABYLON.SceneLoader.IsPluginForExtensionAvailable('.glb')){
+  const probe=await fetch(assetUrl,{method:'GET'});
+  if(!probe.ok){report('файл velociraptor.glb не найден (HTTP '+probe.status+')');return}
+  const bytes=await probe.arrayBuffer();
+  if(bytes.byteLength<20||new DataView(bytes).getUint32(0,true)!==0x46546c67){report('файл не является GLB');return}
+  // Babylon core does not include the glTF plugin. Load it explicitly rather
+  // than calling an API that is missing in some Babylon distributions.
+  if(!window.__blacksiteGltfLoader){
    await new Promise((resolve,reject)=>{
     const script=document.createElement('script');
     script.src='https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js';
-    script.onload=resolve;script.onerror=reject;document.head.appendChild(script);
+    script.onload=resolve;script.onerror=()=>reject(new Error('Babylon glTF loader CDN недоступен'));
+    document.head.appendChild(script);
    });
+   window.__blacksiteGltfLoader=true;
   }
-  const result=await BABYLON.SceneLoader.ImportMeshAsync('','./assets/raptor/','velociraptor.glb',scene);
+  const blob=new Blob([bytes],{type:'model/gltf-binary'});
+  const blobUrl=URL.createObjectURL(blob);
+  let result;
+  try{
+   result=await BABYLON.SceneLoader.ImportMeshAsync('',blobUrl,'',scene,undefined,'.glb');
+  }finally{URL.revokeObjectURL(blobUrl)}
   const visual=new BABYLON.TransformNode('imported velociraptor visual',scene);
-  for(const mesh of result.meshes){
-   if(!mesh.parent)mesh.parent=visual;
-   mesh.isPickable=false;
-  }
+  for(const mesh of result.meshes){if(!mesh.parent)mesh.parent=visual;mesh.isPickable=false}
   visual.computeWorldMatrix(true);
   const bounds=visual.getHierarchyBoundingVectors(true);
   const dimensions=bounds.max.subtract(bounds.min);
@@ -437,18 +451,18 @@ async function loadExternalRaptor(){
   visual.parent=raptorRoot;
   visual.rotation.y=Math.PI;
   const groups=result.animationGroups||[];
-  const findGroup=(words)=>groups.find(g=>words.some(word=>g.name.toLowerCase().includes(word)));
+  const findGroup=words=>groups.find(g=>words.some(word=>g.name.toLowerCase().includes(word)));
   const idle=findGroup(['idle','breath'])||groups[0];
   const walk=findGroup(['walk','jog','sprint','run','locomotion'])||idle;
   const attack=findGroup(['bite','attack','tackle','leap'])||walk;
   for(const group of groups)group.stop();
   if(idle)idle.start(true);
   externalRaptor={visual,groups,idle,walk,attack,current:idle};
-  for(const child of raptorRoot.getChildren())if(child!==visual&&child instanceof BABYLON.AbstractMesh)child.setEnabled(false);
-  notify('ЗАГРУЖЕНА 3D-МОДЕЛЬ ВЕЛОЦИРАПТОРА',3);
- }catch(error){
-  console.warn('External raptor unavailable; procedural fallback retained',error);
- }
+  // Procedural body has nested transform nodes: hide the entire old hierarchy.
+  for(const child of raptorRoot.getChildren())if(child!==visual)child.setEnabled(false);
+  notify('PBR ВЕЛОЦИРАПТОР ЗАГРУЖЕН · '+groups.length+' АНИМАЦИЙ',5);
+  console.info('[BLACKSITE RAPTOR MODEL] Loaded',result.meshes.length,'meshes',groups.length,'animations');
+ }catch(error){report('не удалось загрузить модель: '+(error?.message||error),error)}
 }
 function animateExternalRaptor(moving){
  if(!externalRaptor)return;
