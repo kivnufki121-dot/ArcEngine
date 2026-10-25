@@ -39,6 +39,48 @@ floor.specularPower=70;
 steel.specularColor=new BABYLON.Color3(.45,.52,.55);
 steel.specularPower=80;
 wall.specularPower=28;
+// FINAL VISUAL PASS — procedural industrial surface details, no network assets.
+function industrialTexture(name,base,accent,seed){
+ const texture=new BABYLON.DynamicTexture(name,{width:512,height:512},scene,false);
+ const ctx=texture.getContext();
+ ctx.fillStyle=base;ctx.fillRect(0,0,512,512);
+ let state=seed>>>0;
+ const random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296};
+ for(let i=0;i<8500;i++){
+  const x=random()*512,y=random()*512,a=random()*.085;
+  ctx.fillStyle='rgba(220,230,232,'+a+')';ctx.fillRect(x,y,1+random()*3,1+random()*3);
+ }
+ ctx.strokeStyle=accent;ctx.lineWidth=3;
+ for(let i=0;i<=4;i++){
+  const p=i*128+.5;ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,512);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(512,p);ctx.stroke();
+ }
+ ctx.fillStyle='rgba(5,10,12,.8)';
+ for(let x=8;x<512;x+=128)for(let y=8;y<512;y+=128){
+  for(const ox of [0,110])for(const oy of [0,110]){
+   ctx.beginPath();ctx.arc(x+ox,y+oy,3.5,0,Math.PI*2);ctx.fill();
+  }
+ }
+ texture.update();texture.uScale=6;texture.vScale=5;return texture;
+}
+floor.diffuseTexture=industrialTexture('floor plated texture','#354044','rgba(11,18,20,.7)',200);
+wall.diffuseTexture=industrialTexture('concrete panel texture','#485358','rgba(19,25,27,.55)',903);
+floor.specularColor=new BABYLON.Color3(.35,.42,.46);
+function illuminatedSign(name,text,x,y,z,width,rotation=0){
+ const tex=new BABYLON.DynamicTexture(name+' texture',{width:1024,height:256},scene,true);
+ const ctx=tex.getContext();ctx.fillStyle='#081216';ctx.fillRect(0,0,1024,256);
+ ctx.strokeStyle='#d14d3d';ctx.lineWidth=13;ctx.strokeRect(10,10,1004,236);
+ ctx.fillStyle='#e7d9ca';ctx.font='bold 66px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+ ctx.fillText(text,512,128,950);tex.update();
+ const mat=new BABYLON.StandardMaterial(name+' emissive',scene);
+ mat.diffuseTexture=tex;mat.emissiveTexture=tex;mat.disableLighting=true;
+ const mesh=BABYLON.MeshBuilder.CreatePlane(name,{width,height:width/4},scene);
+ mesh.position.set(x,y,z);mesh.rotation.y=rotation;mesh.material=mat;mesh.isPickable=false;
+ return mesh;
+}
+illuminatedSign('north exit label','HELIX MERIDIAN  /  A-01',0,3.3,-14.05,3.5);
+illuminatedSign('south quarantine label','BIOHAZARD  /  QUARANTINE',0,3.1,14.1,3.8,Math.PI);
+illuminatedSign('east lab label','LABORATORY  /  RESTRICTED',12,3.05,-14.05,3.7);
 const colliders=[];
 function block(name,x,y,z,w,h,d,mat,solid=false){
  const m=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
@@ -600,7 +642,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Цель: '+currentObjective()+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':raptor.mode==='search'?'ИЩЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 2.0 Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 2.1 Visual Edition: процедурные текстуры металла, маркировка Helix Meridian, ACES, bloom, сглаживание, туман и лабораторный декор. Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;survival.ammoCollected=false;survival.extraMedCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;raptor.windup=0;raptor.investigate=0;raptor.stunned=0;raptor.path=[];raptor.pathTimer=0;raptor.mode='patrol';raptorRoot.scaling.y=1;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
