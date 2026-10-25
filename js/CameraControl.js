@@ -118,7 +118,7 @@ class CameraController {
         this.target.h = this._groundH(this.target.x, this.target.y);
     }
 
-    follow(obj) { this.followObj = obj || null; }
+    follow(obj) { this.followObj = obj || null; if (this.followObj) this._keys.clear(); }
 
     setFree(on) {
         this.free = !!on;
@@ -486,6 +486,7 @@ class CameraController {
         if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (CameraController.FLY_KEYS[e.code]) {
+            if (this.followObj) { this._keys.delete(e.code); e.preventDefault(); return; }
             if (down) this._keys.add(e.code); else this._keys.delete(e.code);
             e.preventDefault();
             return;
@@ -504,7 +505,7 @@ class CameraController {
             let fwd = 0, right = 0, up = 0;
             for (const code of this._keys) { fwd += K[code][0]; right += K[code][1]; up += K[code][2]; }
             // Speed is set in screen px: farther from the target (zoomed out) — faster over the world.
-            if (fwd || right || up) this._fly(fwd, right, up, c.flySpeed * this.worldPerScreenPx() * dt);
+            if (!this.followObj && (fwd || right || up)) this._fly(fwd, right, up, c.flySpeed * this.worldPerScreenPx() * dt);
         }
 
         if (Math.abs(this.zoom - this.zoomTarget) > 1e-4) {
