@@ -336,7 +336,10 @@ for(const [pivot,side] of [[leftLeg,-1],[rightLeg,1]]){
 heroBox('chest neon left',.055,.52,.37,-.25,1.43,-.005,neon);
 heroBox('chest neon right',.055,.52,.37,.25,1.43,-.005,neon);
 heroBox('chest cyan badge',.23,.08,.4,0,1.73,-.02,cyan);
-let walkCycle=0,walkBlend=0,crouchBlend=0;
+// Character micro-animation: breathing and subtle secondary motion at rest.
+let walkCycle=0,walkBlend=0,crouchBlend=0,characterTime=0;
+const baseTorsoScale=torso.scaling.clone();
+
 // v0.4: isolated dromaeosaur encounter; no changes to player input, camera or puzzles.
 const raptorRoot=new BABYLON.TransformNode('raptor patrol root',scene);
 const raptorCoat=material('feathered raptor coat','#556b5c'),raptorFeather=material('raptor wing feathers','#9d9b72');
@@ -836,9 +839,16 @@ function update(dt){
  rightArm.rotation.x=stride*.7;
  leftArm.rotation.z=-.08-crouchBlend*.1;
  rightArm.rotation.z=.08+crouchBlend*.1;
+ characterTime+=dt;
+ const breathing=Math.sin(characterTime*2.1)*(.004+.004*(1-walkBlend));
  const bob=Math.abs(Math.sin(walkCycle))*walkBlend*.045;
- torso.position.y=1.38+bob;
+ torso.position.y=1.38+bob+breathing;
+ torso.scaling.y=baseTorsoScale.y*(1+breathing*.75);
  character.position.y=-crouchBlend*.08;
+ // Idle sway makes the silhouette feel alive even when no controls are pressed.
+ character.rotation.z=Math.sin(characterTime*.9)*.007*(1-walkBlend);
+ leftArm.rotation.x+=Math.sin(characterTime*1.7)*.014*(1-walkBlend);
+ rightArm.rotation.x-=Math.sin(characterTime*1.7)*.014*(1-walkBlend);
  for(let i=0;i<hairStrands.length;i++){
   const strand=hairStrands[i];
   strand.rotation.x=Math.sin(walkCycle*.55+i*.3)*.07*walkBlend;
