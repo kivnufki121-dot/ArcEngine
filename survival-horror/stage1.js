@@ -71,14 +71,21 @@ function move(dx,dz){
  if(passable(player.x+dx,player.z))player.x+=dx;
  if(passable(player.x,player.z+dz))player.z+=dz;
 }
-function updateCamera(dt){
- // Explicit zones, with smoothing; player controls remain world-relative across cuts.
+// Camera is locked to a room shot, not attached to the moving player.
+// Input stays in world coordinates when shots change.
+const shots=[
+ {position:[0,17,24],target:[0,0,8]},
+ {position:[-18,18,15],target:[0,0,0]},
+ {position:[0,17,-24],target:[0,0,-8]}
+];
+function updateCamera(){
  const next=player.z>4?0:player.z< -4?2:1;
- if(zone!==next){zone=next;notify(['СКЛАД ОБОРУДОВАНИЯ','ЦЕНТРАЛЬНЫЙ КОРИДОР','СЕКТОР УПРАВЛЕНИЯ'][zone],1.3)}
- const offsets=[[8,11,9],[-9,11,8],[9,11,-9]];
- const o=offsets[zone],target=new BABYLON.Vector3(player.x+o[0],o[1],player.z+o[2]);
- camera.position=BABYLON.Vector3.Lerp(camera.position,target,Math.min(1,dt*3.2));
- camera.setTarget(new BABYLON.Vector3(player.x,1.25,player.z));
+ if(zone===next)return;
+ zone=next;
+ const shot=shots[zone];
+ camera.position.set(...shot.position);
+ camera.setTarget(new BABYLON.Vector3(...shot.target));
+ notify(['СКЛАД ОБОРУДОВАНИЯ','ЦЕНТРАЛЬНЫЙ КОРИДОР','СЕКТОР УПРАВЛЕНИЯ'][zone],1.3);
 }
 function load(){
  try{
@@ -110,7 +117,8 @@ function interact(){
 }
 function update(dt){
  const p=gamepad(),button=i=>!!p?.buttons[i]?.pressed;
- let mx=Number(pressed('KeyD')||pressed('ArrowRight'))-Number(pressed('KeyA')||pressed('ArrowLeft'))+dz(p?.axes[0]||0);
+ // Camera-independent left/right: A and left stick left always move left on the map.
+ let mx=Number(pressed('KeyA')||pressed('ArrowLeft'))-Number(pressed('KeyD')||pressed('ArrowRight'))-dz(p?.axes[0]||0);
  let mz=Number(pressed('KeyS')||pressed('ArrowDown'))-Number(pressed('KeyW')||pressed('ArrowUp'))+dz(p?.axes[1]||0);
  const length=Math.hypot(mx,mz);if(length>1){mx/=length;mz/=length}
  const crouch=pressed('ControlLeft')||pressed('ControlRight')||button(1);
@@ -133,7 +141,7 @@ function update(dt){
  const saveKey=pressed('F5');
  if(saveKey&&!prevSave&&near(-11,-11))saveProgress();
  prevSave=saveKey;
- updateCamera(dt);
+ updateCamera();
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
  $('status').innerHTML='СЕКТОР A-01 · '+['СКЛАД','КОРИДОР','УПРАВЛЕНИЕ'][zone]+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение</small>';
