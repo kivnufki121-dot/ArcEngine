@@ -297,13 +297,30 @@ function move(dx,dz){
 function updateCamera(dt){
  const distance=4.0,side=.65;
  const sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
- const desired=new BABYLON.Vector3(player.x-sy*distance+cy*side,2.35+Math.sin(shoulderPitch)*2.0,player.z-cy*distance-sy*side);
- // Keep camera inside the current room when a wall blocks the desired position.
  const focus=new BABYLON.Vector3(player.x,1.45,player.z);
- const ray=desired.subtract(focus);
- const hit=scene.pickWithRay(new BABYLON.Ray(focus,ray.normalize(),ray.length()),mesh=>mesh.isPickable&&mesh!==character);
- const target=hit?.hit?focus.add(ray.normalize().scale(Math.max(.75,hit.distance-.2))):desired;
- camera.position=BABYLON.Vector3.Lerp(camera.position,target,Math.min(1,dt*12));
+ const desired=new BABYLON.Vector3(player.x-sy*distance+cy*side,2.35+Math.sin(shoulderPitch)*2.0,player.z-cy*distance-sy*side);
+ const isWall=mesh=>mesh.isPickable;
+ // Use multiple nearby rays to give the shoulder camera a safety margin.
+ function safePosition(candidate){
+  const offsets=[[0,0,0],[.22,0,0],[-.22,0,0],[0,.22,0],[0,-.22,0]];
+  const rayVector=candidate.subtract(focus),length=rayVector.length();
+  if(length<.001)return candidate;
+  const direction=rayVector.scale(1/length);
+  let allowed=length;
+  for(const [ox,oy,oz] of offsets){
+   const origin=focus.add(new BABYLON.Vector3(ox,oy,oz));
+   const hit=scene.pickWithRay(new BABYLON.Ray(origin,direction,length),isWall);
+   if(hit&&hit.hit)allowed=Math.min(allowed,Math.max(.55,hit.distance-.3));
+  }
+  return focus.add(direction.scale(allowed));
+ }
+ const target=safePosition(desired);
+ // Smooth outward motion; when a wall intervenes, snap inward instead of interpolating through it.
+ const oldDistance=BABYLON.Vector3.Distance(focus,camera.position);
+ const newDistance=BABYLON.Vector3.Distance(focus,target);
+ const alpha=newDistance<oldDistance?1:Math.min(1,dt*10);
+ const candidate=BABYLON.Vector3.Lerp(camera.position,target,alpha);
+ camera.position=safePosition(candidate);
  camera.setTarget(new BABYLON.Vector3(player.x+sy*2.6,1.35+Math.sin(shoulderPitch)*2.2,player.z+cy*2.6));
 }
 function load(){
@@ -405,7 +422,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.4: первый пернатый хищник — патрулирование, обнаружение, преследование и атака. Уклоняйтесь и используйте приседание.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.4.2: исправлено пересечение камерой стен. Динозавр патрулирует, обнаруживает героиню и атакует.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
