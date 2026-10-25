@@ -191,13 +191,35 @@ raptorPart('raptor body',.72,.58,1.25,0,1.02,0,raptorCoat);
 raptorPart('raptor neck',.35,.54,.4,0,1.36,-.54,raptorCoat);
 raptorPart('raptor skull',.4,.3,.57,0,1.62,-.83,raptorCoat);
 raptorPart('raptor muzzle',.31,.13,.45,0,1.52,-1.25,raptorFeather);
+const raptorLegs=[],raptorArms=[],raptorTail=[];
 for(const side of [-1,1]){
  raptorPart('raptor eye',.07,.08,.08,side*.22,1.7,-.96,raptorEye);
- raptorPart('feathered forearm',.18,.32,.7,side*.43,1.04,-.2,raptorFeather);
- raptorPart('raptor leg',.2,.73,.24,side*.25,.53,.27,raptorCoat);
+ const arm=raptorPart('feathered forearm',.18,.32,.7,side*.43,1.04,-.2,raptorFeather);
+ const leg=raptorPart('raptor leg',.2,.73,.24,side*.25,.53,.27,raptorCoat);
  raptorPart('sickle claw',.13,.08,.3,side*.25,.1,-.14,raptorFeather);
+ raptorArms.push(arm);raptorLegs.push(leg);
+ for(let i=0;i<3;i++)raptorPart('wing feather',.12,.08,.28,side*(.44+i*.055),.88,-.44+i*.15,raptorFeather);
 }
-for(let i=0;i<4;i++)raptorPart('tail feathers',.16,.13,.53,0,1.04,.86+i*.34,raptorCoat);
+for(let i=0;i<4;i++)raptorTail.push(raptorPart('tail feathers',.16,.13,.53,0,1.04,.86+i*.34,raptorCoat));
+const raptorCrest=raptorPart('neck plumage',.38,.15,.4,0,1.6,-.53,raptorFeather);
+const raptorJaw=raptorPart('lower jaw',.32,.09,.43,0,1.42,-1.2,raptorCoat);
+let raptorGait=0,raptorHitFlash=0;
+function animateRaptor(dt,moving){
+ const chase=raptor.mode==='chase',pace=chase?11:6;
+ if(moving)raptorGait+=dt*pace;
+ const amplitude=moving?(chase?.52:.28):.035;
+ const stride=Math.sin(raptorGait)*amplitude;
+ raptorLegs[0].rotation.x=stride;raptorLegs[1].rotation.x=-stride;
+ raptorArms[0].rotation.x=-stride*.5;raptorArms[1].rotation.x=stride*.5;
+ for(let i=0;i<raptorTail.length;i++){
+  raptorTail[i].rotation.y=Math.sin(raptorGait*.45+i*.35)*.09;
+  raptorTail[i].rotation.x=Math.sin(raptorGait*.6+i*.25)*.035;
+ }
+ raptorCrest.rotation.z=Math.sin(raptorGait*.8)*.06;
+ raptorJaw.rotation.x=chase?-.17:Math.sin(raptorGait*.3)*.025;
+ raptorHitFlash=Math.max(0,raptorHitFlash-dt);
+ raptorCoat.emissiveColor=raptorHitFlash>0?new BABYLON.Color3(.65,.06,.035):BABYLON.Color3.Black();
+}
 const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0};
 const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
 let health=100;
@@ -261,6 +283,7 @@ function updateRaptor(dt,isRunning,isCrouching){
   raptor.path=raptorPath(raptor.x,raptor.z,tx,tz);
   raptor.pathTimer=raptor.mode==='chase'?.35:1.0;
  }
+ let raptorMoving=false;
  if(raptor.path.length){
   const [wx,wz]=raptor.path[0],dx=wx-raptor.x,dz=wz-raptor.z,dist=Math.hypot(dx,dz);
   if(dist<.24)raptor.path.shift();
@@ -269,10 +292,12 @@ function updateRaptor(dt,isRunning,isCrouching){
    const nx=raptor.x+dx/dist*step,nz=raptor.z+dz/dist*step;
    if(passable(nx,raptor.z))raptor.x=nx;
    if(passable(raptor.x,nz))raptor.z=nz;
+   raptorMoving=Math.hypot(raptor.x-nx,raptor.z-nz)<.15&&speed>0;
    raptorRoot.rotation.y=Math.atan2(-dx,-dz);
   }
  }
- raptorRoot.position.set(raptor.x,Math.sin(performance.now()*.007)*.025,raptor.z);
+ animateRaptor(dt,raptorMoving);
+ raptorRoot.position.set(raptor.x,Math.sin(raptorGait*2)*(raptorMoving?.035:.008),raptor.z);
  raptor.attackCooldown=Math.max(0,raptor.attackCooldown-dt);
  if(distance<1.4&&raptor.attackCooldown===0){
   raptor.attackCooldown=1.5;
@@ -302,7 +327,7 @@ function firePistol(){
  const wallHit=scene.pickWithRay(new BABYLON.Ray(new BABYLON.Vector3(player.x,1.35,player.z),new BABYLON.Vector3(dx,0,dz).normalize(),dist),mesh=>mesh.isPickable);
  if(raptor.health>0&&dist<18&&aligned&&!(wallHit?.hit&&wallHit.distance<dist-.25)){
   raptor.health=Math.max(0,raptor.health-25);
-  raptor.stunned=.45;raptor.alert=8;raptor.pathTimer=0;
+  raptor.stunned=.45;raptorHitFlash=.18;raptor.alert=8;raptor.pathTimer=0;
   notify(raptor.health===0?'ХИЩНИК НЕЙТРАЛИЗОВАН':'ПОПАДАНИЕ! ЗДОРОВЬЕ ХИЩНИКА: '+raptor.health+'%',1.2);
  }else{
   raptor.alert=6;notify('ВЫСТРЕЛ',.5);
@@ -510,7 +535,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.7: три сюжетных терминала с записями Helix Meridian. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.8: анимация лап, перьев и хвоста хищника, реакция на попадания. Три сюжетных архива Helix Meridian. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
