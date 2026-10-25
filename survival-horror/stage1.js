@@ -176,6 +176,58 @@ heroBox('chest neon left',.055,.52,.37,-.25,1.43,-.005,neon);
 heroBox('chest neon right',.055,.52,.37,.25,1.43,-.005,neon);
 heroBox('chest cyan badge',.23,.08,.4,0,1.73,-.02,cyan);
 let walkCycle=0,walkBlend=0,crouchBlend=0;
+// v0.4: isolated dromaeosaur encounter; no changes to player input, camera or puzzles.
+const raptorRoot=new BABYLON.TransformNode('raptor patrol root',scene);
+const raptorCoat=material('feathered raptor coat','#556b5c'),raptorFeather=material('raptor wing feathers','#9d9b72');
+const raptorEye=material('raptor eyes','#f2a84b',.65);
+function raptorPart(name,w,h,d,x,y,z,mat){
+ const mesh=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
+ mesh.parent=raptorRoot;mesh.position.set(x,y,z);mesh.material=mat;mesh.isPickable=false;return mesh;
+}
+raptorPart('raptor body',.72,.58,1.25,0,1.02,0,raptorCoat);
+raptorPart('raptor neck',.35,.54,.4,0,1.36,-.54,raptorCoat);
+raptorPart('raptor skull',.4,.3,.57,0,1.62,-.83,raptorCoat);
+raptorPart('raptor muzzle',.31,.13,.45,0,1.52,-1.25,raptorFeather);
+for(const side of [-1,1]){
+ raptorPart('raptor eye',.07,.08,.08,side*.22,1.7,-.96,raptorEye);
+ raptorPart('feathered forearm',.18,.32,.7,side*.43,1.04,-.2,raptorFeather);
+ raptorPart('raptor leg',.2,.73,.24,side*.25,.53,.27,raptorCoat);
+ raptorPart('sickle claw',.13,.08,.3,side*.25,.1,-.14,raptorFeather);
+}
+for(let i=0;i<4;i++)raptorPart('tail feathers',.16,.13,.53,0,1.04,.86+i*.34,raptorCoat);
+const raptor={x:10,z:7,mode:'patrol',alert:0,attackCooldown:0,waypoint:0};
+const raptorRoute=[[10,7],[13,5],[11,1],[7,3]];
+let health=100;
+function updateRaptor(dt,isRunning,isCrouching){
+ const distance=Math.hypot(player.x-raptor.x,player.z-raptor.z);
+ const hearingRadius=isRunning?10:isCrouching?3:6;
+ if(distance<hearingRadius)raptor.alert=5;
+ raptor.alert=Math.max(0,raptor.alert-dt);
+ raptor.mode=raptor.alert>0?'chase':'patrol';
+ let tx,tz;
+ if(raptor.mode==='chase'){tx=player.x;tz=player.z}
+ else{
+  [tx,tz]=raptorRoute[raptor.waypoint];
+  if(Math.hypot(tx-raptor.x,tz-raptor.z)<.6)raptor.waypoint=(raptor.waypoint+1)%raptorRoute.length;
+ }
+ const dx=tx-raptor.x,dz=tz-raptor.z,dist=Math.hypot(dx,dz);
+ if(dist>.3){
+  const speed=raptor.mode==='chase'?2.15:1.0,step=Math.min(dist,speed*dt);
+  // Respect the same collision volumes as the player.
+  const nx=raptor.x+dx/dist*step,nz=raptor.z+dz/dist*step;
+  if(passable(nx,raptor.z))raptor.x=nx;
+  if(passable(raptor.x,nz))raptor.z=nz;
+  raptorRoot.rotation.y=Math.atan2(-dx,-dz);
+ }
+ raptorRoot.position.set(raptor.x,Math.sin(performance.now()*.007)*.025,raptor.z);
+ raptor.attackCooldown=Math.max(0,raptor.attackCooldown-dt);
+ if(distance<1.4&&raptor.attackCooldown===0){
+  raptor.attackCooldown=1.5;
+  if(dodgeTime<=0){health=Math.max(0,health-20);notify('АТАКА ХИЩНИКА! ЗДОРОВЬЕ: '+health+'%',1.5)}
+  else notify('УКЛОНЕНИЕ ОТ АТАКИ!',1.1);
+  if(health===0){health=100;player.x=-10;player.z=10;raptor.alert=0;notify('ГЕРОИНЯ РАНЕНА — ВОЗВРАТ В НАЧАЛО',4)}
+ }
+}
 const player={x:-10,z:10,heading:0,key:false,power:false,door:false,stamina:100,crouch:false,alive:true};
 const controls=new Set();
 addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();controls.add(e.code)});
@@ -298,6 +350,7 @@ function update(dt){
   strand.rotation.x=Math.sin(walkCycle*.55+i*.3)*.07*walkBlend;
   strand.rotation.z=(i-3.5)*.06+Math.sin(walkCycle*.6+i*.6)*.035*walkBlend;
  }
+ updateRaptor(dt,running&&length>.1,crouch);
  const action=pressed('KeyE')||button(0);
  if(action&&!prevAction)interact();
  prevAction=action;
@@ -307,10 +360,10 @@ function update(dt){
  updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
- $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
+ $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.3: атмосферная лаборатория, аварийное освещение и детализация помещений.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.4: первый пернатый хищник — патрулирование, обнаружение, преследование и атака. Уклоняйтесь и используйте приседание.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
