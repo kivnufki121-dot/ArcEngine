@@ -216,14 +216,19 @@ function animateRaptor(dt,moving){
   raptorTail[i].rotation.x=Math.sin(raptorGait*.6+i*.25)*.035;
  }
  raptorCrest.rotation.z=Math.sin(raptorGait*.8)*.06;
- raptorJaw.rotation.x=chase?-.17:Math.sin(raptorGait*.3)*.025;
+ raptorJaw.rotation.x=raptor.windup>0?-.42:chase?-.17:Math.sin(raptorGait*.3)*.025;
+ raptorRoot.scaling.y=raptor.windup>0?.86:1;
  raptorHitFlash=Math.max(0,raptorHitFlash-dt);
  raptorCoat.emissiveColor=raptorHitFlash>0?new BABYLON.Color3(.65,.06,.035):BABYLON.Color3.Black();
 }
-const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0};
+const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0,lastX:6,lastZ:4,windup:0,investigate:0};
 const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
 let health=100;
-const survival={medkits:1,kitCollected:false,healHeld:false};
+const survival={medkits:1,kitCollected:false,healHeld:false,ammoCollected:false,extraMedCollected:false};
+const objectives={escape:false};
+const ammoSupply=block('ammunition supply',9,.32,9,.7,.35,.6,gold);
+const extraMedSupply=block('emergency medkit',-8,.32,8,.6,.36,.5,medMaterial);
+function currentObjective(){return !player.key?'НАЙТИ КЛЮЧ-КАРТУ':!player.power?'ВОССТАНОВИТЬ ПИТАНИЕ':!player.door?'ОТКРЫТЬ СЕВЕРНЫЙ ШЛЮЗ':'СЕКТОР A-01 ПРОЙДЕН'}
 function useMedkit(){
  if(survival.medkits<1){notify('НЕТ АПТЕЧЕК',1.2);return}
  if(health>=100){notify('ЗДОРОВЬЕ УЖЕ ПОЛНОЕ',1.2);return}
@@ -271,9 +276,12 @@ function updateRaptor(dt,isRunning,isCrouching){
  const hearingRadius=isRunning?10:isCrouching?3:6;
  if(distance<hearingRadius)raptor.alert=5;
  raptor.alert=Math.max(0,raptor.alert-dt);
- raptor.mode=raptor.alert>0?'chase':'patrol';
+ if(distance<hearingRadius){raptor.lastX=player.x;raptor.lastZ=player.z;raptor.investigate=6}
+ raptor.investigate=Math.max(0,raptor.investigate-dt);
+ raptor.mode=raptor.alert>0?'chase':raptor.investigate>0?'search':'patrol';
  let tx,tz;
  if(raptor.mode==='chase'){tx=player.x;tz=player.z}
+ else if(raptor.mode==='search'){tx=raptor.lastX;tz=raptor.lastZ}
  else{
   [tx,tz]=raptorRoute[raptor.waypoint];
   if(Math.hypot(tx-raptor.x,tz-raptor.z)<.6)raptor.waypoint=(raptor.waypoint+1)%raptorRoute.length;
@@ -299,12 +307,19 @@ function updateRaptor(dt,isRunning,isCrouching){
  animateRaptor(dt,raptorMoving);
  raptorRoot.position.set(raptor.x,Math.sin(raptorGait*2)*(raptorMoving?.035:.008),raptor.z);
  raptor.attackCooldown=Math.max(0,raptor.attackCooldown-dt);
- if(distance<1.4&&raptor.attackCooldown===0){
-  raptor.attackCooldown=1.5;
-  if(dodgeTime<=0){health=Math.max(0,health-20);notify('АТАКА ХИЩНИКА! ЗДОРОВЬЕ: '+health+'%',1.5)}
-  else notify('УКЛОНЕНИЕ ОТ АТАКИ!',1.1);
-  if(health===0){health=100;player.x=-10;player.z=10;raptor.alert=0;notify('ГЕРОИНЯ РАНЕНА — ВОЗВРАТ В НАЧАЛО',4)}
+ if(raptor.windup>0){
+  raptor.windup=Math.max(0,raptor.windup-dt);
+  if(raptor.windup===0&&distance<1.65&&raptor.health>0){
+   raptor.attackCooldown=1.5;
+   if(dodgeTime<=0){health=Math.max(0,health-20);notify('УКУС ХИЩНИКА! ЗДОРОВЬЕ: '+health+'%',1.5)}
+   else notify('УКЛОНЕНИЕ ОТ УКУСА!',1.1);
+   if(health===0){health=100;player.x=-10;player.z=10;raptor.alert=0;notify('ГЕРОИНЯ РАНЕНА — ВОЗВРАТ В НАЧАЛО',4)}
+  }
  }
+ if(distance<1.4&&raptor.attackCooldown===0&&raptor.windup===0&&raptor.stunned===0){
+  raptor.windup=.65;raptor.attackCooldown=1.5;notify('ХИЩНИК ГОТОВИТСЯ К АТАКЕ — УКЛОНИТЕСЬ!',.7);
+ }
+
 }
 // v0.5: small isolated combat module; movement and shoulder camera are unchanged.
 const weapon={ammo:8,capacity:8,reserve:24,fireCooldown:0,reloadTimer:0,fireHeld:false,reloadHeld:false,shots:0};
@@ -327,7 +342,7 @@ function firePistol(){
  const wallHit=scene.pickWithRay(new BABYLON.Ray(new BABYLON.Vector3(player.x,1.35,player.z),new BABYLON.Vector3(dx,0,dz).normalize(),dist),mesh=>mesh.isPickable);
  if(raptor.health>0&&dist<18&&aligned&&!(wallHit?.hit&&wallHit.distance<dist-.25)){
   raptor.health=Math.max(0,raptor.health-25);
-  raptor.stunned=.45;raptorHitFlash=.18;raptor.alert=8;raptor.pathTimer=0;
+  raptor.stunned=.45;raptor.windup=0;raptorHitFlash=.18;raptor.alert=8;raptor.pathTimer=0;
   notify(raptor.health===0?'ХИЩНИК НЕЙТРАЛИЗОВАН':'ПОПАДАНИЕ! ЗДОРОВЬЕ ХИЩНИКА: '+raptor.health+'%',1.2);
  }else{
   raptor.alert=6;notify('ВЫСТРЕЛ',.5);
@@ -433,6 +448,7 @@ function load(){
   health=Number.isFinite(data.health)?clamp(data.health,1,100):100;
   survival.medkits=Number.isFinite(data.medkits)?Math.max(0,Math.floor(data.medkits)):1;
   survival.kitCollected=!!data.kitCollected;
+  survival.ammoCollected=!!data.ammoCollected;survival.extraMedCollected=!!data.extraMedCollected;
   story.read=Array.isArray(data.storyRead)?[0,1,2].map(i=>!!data.storyRead[i]):[false,false,false];
   weapon.ammo=Number.isFinite(data.ammo)?clamp(data.ammo,0,weapon.capacity):8;
   weapon.reserve=Number.isFinite(data.reserve)?Math.max(0,Math.floor(data.reserve)):24;
@@ -440,15 +456,17 @@ function load(){
  }catch(e){notify('НЕ УДАЛОСЬ ЗАГРУЗИТЬ СОХРАНЕНИЕ');return false}
 }
 function sync(){
- key.setEnabled(!player.key);door.setEnabled(!player.door);doorCollider.active=!player.door;medKit.setEnabled(!survival.kitCollected);
+ key.setEnabled(!player.key);door.setEnabled(!player.door);doorCollider.active=!player.door;medKit.setEnabled(!survival.kitCollected);ammoSupply.setEnabled(!survival.ammoCollected);extraMedSupply.setEnabled(!survival.extraMedCollected);
 }
 function saveProgress(){
  try{
-  localStorage.setItem('blacksite-raptor-stage1-v1',JSON.stringify({version:1,x:player.x,z:player.z,key:player.key,power:player.power,door:player.door,health,medkits:survival.medkits,kitCollected:survival.kitCollected,ammo:weapon.ammo,reserve:weapon.reserve,storyRead:story.read}));
+  localStorage.setItem('blacksite-raptor-stage1-v1',JSON.stringify({version:1,x:player.x,z:player.z,key:player.key,power:player.power,door:player.door,health,medkits:survival.medkits,kitCollected:survival.kitCollected,ammo:weapon.ammo,reserve:weapon.reserve,storyRead:story.read,ammoCollected:survival.ammoCollected,extraMedCollected:survival.extraMedCollected}));
   notify('СОХРАНЕНО В БЕЗОПАСНОЙ КОМНАТЕ');
  }catch(e){notify('СОХРАНЕНИЕ НЕДОСТУПНО')}
 }
 function interact(){
+ if(!survival.ammoCollected&&near(9,9,1.8)){survival.ammoCollected=true;weapon.reserve+=8;sync();notify('НАЙДЕНЫ ПАТРОНЫ: +8');return}
+ if(!survival.extraMedCollected&&near(-8,8,1.8)){survival.extraMedCollected=true;survival.medkits++;sync();notify('НАЙДЕНА АПТЕЧКА: +1');return}
  for(let i=0;i<storyEntries.length;i++)if(near(storyEntries[i].x,storyEntries[i].z,1.5)){readStory(i);return}
  if(!survival.kitCollected&&near(-8,-10,1.8)){survival.kitCollected=true;survival.medkits++;sync();notify('ПОЛУЧЕНА АПТЕЧКА (+1)');return}
  if(!player.key&&near(-11,10)){player.key=true;sync();notify('ПОЛУЧЕНА КЛЮЧ-КАРТА');return}
@@ -532,11 +550,11 @@ function update(dt){
  updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
- $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
+ $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Цель: '+currentObjective()+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':raptor.mode==='search'?'ИЩЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 0.8: анимация лап, перьев и хвоста хищника, реакция на попадания. Три сюжетных архива Helix Meridian. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
-$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 1.9: хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;survival.ammoCollected=false;survival.extraMedCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;raptor.windup=0;raptor.investigate=0;raptor.stunned=0;raptor.path=[];raptor.pathTimer=0;raptor.mode='patrol';raptorRoot.scaling.y=1;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
 engine.runRenderLoop(()=>{
