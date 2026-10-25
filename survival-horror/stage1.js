@@ -76,7 +76,7 @@ function move(dx,dz){
 const shots=[
  {position:[0,17,24],target:[0,0,8]},
  {position:[-18,18,15],target:[0,0,0]},
- {position:[0,17,-24],target:[0,0,-8]}
+ {position:[8,17,4],target:[0,0,-8]}
 ];
 function updateCamera(){
  const next=player.z>4?0:player.z< -4?2:1;
@@ -117,8 +117,8 @@ function interact(){
 }
 function update(dt){
  const p=gamepad(),button=i=>!!p?.buttons[i]?.pressed;
- // Camera-independent left/right: A and left stick left always move left on the map.
- let mx=Number(pressed('KeyA')||pressed('ArrowLeft'))-Number(pressed('KeyD')||pressed('ArrowRight'))-dz(p?.axes[0]||0);
+ // All three camera shots face toward negative Z, keeping screen-left/right consistent.
+ let mx=Number(pressed('KeyD')||pressed('ArrowRight'))-Number(pressed('KeyA')||pressed('ArrowLeft'))+dz(p?.axes[0]||0);
  let mz=Number(pressed('KeyS')||pressed('ArrowDown'))-Number(pressed('KeyW')||pressed('ArrowUp'))+dz(p?.axes[1]||0);
  const length=Math.hypot(mx,mz);if(length>1){mx/=length;mz/=length}
  const crouch=pressed('ControlLeft')||pressed('ControlRight')||button(1);
