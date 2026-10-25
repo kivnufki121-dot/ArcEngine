@@ -13,6 +13,8 @@ class Game {
     /** @param {{ location: Location3D, camera: CameraController }} app */
     constructor(app) {
         this.app = app;
+        this.input = new InputManager();
+        this.controls = this.input.poll();
         this.running = false;
         this.energy = 1;          // 0..1
         this._fpsTimer = 0;
@@ -32,6 +34,7 @@ class Game {
     }
 
     update(dt) {
+        this.controls = this.input.poll();
         const c = Game.cfg();
         this.energy = Math.max(0, Math.min(1, this.energy + (this.running ? -dt / c.runSec : dt / c.restSec)));
         if (this.running && this.energy <= 0) this.setRunning(false);
