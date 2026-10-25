@@ -57,7 +57,10 @@ addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','Ar
 addEventListener('keyup',e=>controls.delete(e.code));
 addEventListener('blur',()=>controls.clear());
 const pressed=k=>controls.has(k);
-let active=false,prevAction=false,prevDodge=false,prevSave=false,notice='',noticeTime=0,clock=0,zone=-1,frames=0,fps=0,fpstime=0,dodgeTime=0,dodgeCooldown=0;
+let active=false,prevAction=false,prevDodge=false,prevSave=false,prevView=false,notice='',noticeTime=0,clock=0,zone=-1,frames=0,fps=0,fpstime=0,dodgeTime=0,dodgeCooldown=0;
+let shoulder=false,shoulderYaw=0,shoulderPitch=.2;
+canvas.addEventListener('click',()=>{if(active&&shoulder&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.()});
+document.addEventListener('mousemove',e=>{if(active&&shoulder&&document.pointerLockElement===canvas){shoulderYaw+=e.movementX*.0025;shoulderPitch=clamp(shoulderPitch-e.movementY*.002,-.35,.65)}});
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const near=(x,z,r=2.3)=>Math.hypot(player.x-x,player.z-z)<r;
 const notify=(s,t=2.8)=>{notice=s;noticeTime=t};
@@ -78,7 +81,15 @@ const shots=[
  {position:[-18,18,15],target:[0,0,0]},
  {position:[8,17,4],target:[0,0,-8]}
 ];
-function updateCamera(){
+function updateCamera(dt){
+ if(shoulder){
+  const distance=4.3,side=.85;
+  const sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
+  const pos=new BABYLON.Vector3(player.x-sy*distance+cy*side,2.35+Math.sin(shoulderPitch)*2.2,player.z-cy*distance-sy*side);
+  camera.position=BABYLON.Vector3.Lerp(camera.position,pos,Math.min(1,dt*13));
+  camera.setTarget(new BABYLON.Vector3(player.x+sy*3,1.3+Math.sin(shoulderPitch)*3,player.z+cy*3));
+  return;
+ }
  const next=player.z>4?0:player.z< -4?2:1;
  if(zone===next)return;
  zone=next;
@@ -121,6 +132,16 @@ function update(dt){
  let mx=Number(pressed('KeyD')||pressed('ArrowRight'))-Number(pressed('KeyA')||pressed('ArrowLeft'))+dz(p?.axes[0]||0);
  let mz=Number(pressed('KeyS')||pressed('ArrowDown'))-Number(pressed('KeyW')||pressed('ArrowUp'))+dz(p?.axes[1]||0);
  const length=Math.hypot(mx,mz);if(length>1){mx/=length;mz/=length}
+ const viewKey=pressed('KeyV')||button(3);
+ if(viewKey&&!prevView){shoulder=!shoulder;zone=-1;shoulderYaw=player.heading;notify(shoulder?'КАМЕРА ИЗ-ЗА ПЛЕЧА':'ФИКСИРОВАННАЯ КАМЕРА');if(!shoulder&&document.pointerLockElement===canvas)document.exitPointerLock?.()}
+ prevView=viewKey;
+ if(shoulder){
+  shoulderYaw+=dz(p?.axes[2]||0)*dt*2.6;
+  shoulderPitch=clamp(shoulderPitch-dz(p?.axes[3]||0)*dt*1.5,-.35,.65);
+  const sx=mx,sz=mz,sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
+  mx=cy*sx+sy*(-sz);
+  mz=-sy*sx+cy*(-sz);
+ }
  const crouch=pressed('ControlLeft')||pressed('ControlRight')||button(1);
  const running=(pressed('ShiftLeft')||pressed('ShiftRight')||button(10))&&!crouch&&player.stamina>1;
  const dodge=pressed('Space')||button(2);
@@ -141,13 +162,13 @@ function update(dt){
  const saveKey=pressed('F5');
  if(saveKey&&!prevSave&&near(-11,-11))saveProgress();
  prevSave=saveKey;
- updateCamera();
+ updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
- $('status').innerHTML='СЕКТОР A-01 · '+['СКЛАД','КОРИДОР','УПРАВЛЕНИЕ'][zone]+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение</small>';
+ $('status').innerHTML='СЕКТОР A-01 · '+['СКЛАД','КОРИДОР','УПРАВЛЕНИЕ'][zone]+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · V / Y камера</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Фиксированные камеры. Смена ракурса не меняет направления управления. Тестовая геометрия и временный персонаж.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие, <b>V</b> — переключить камеру.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, Y — переключить камеру, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Фиксированные камеры. Смена ракурса не меняет направления управления. Тестовая геометрия и временный персонаж.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none'};
 let previous=performance.now();
