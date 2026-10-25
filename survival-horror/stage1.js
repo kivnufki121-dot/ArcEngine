@@ -511,7 +511,7 @@ function animateExternalRaptor(moving){
  }
 }
 loadExternalRaptor();
-const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0,lastX:6,lastZ:4,windup:0,investigate:0};
+const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0,lastX:6,lastZ:4,windup:0,investigate:0,noiseTimer:0,noiseX:6,noiseZ:4,searchPause:0};
 const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
 // Diegetic warning light: brighter and faster as the predator approaches.
 const threatLight=new BABYLON.PointLight('predator proximity warning',new BABYLON.Vector3(0,2,0),scene);
@@ -581,14 +581,30 @@ function updateRaptor(dt,isRunning,isCrouching){
  raptor.stunned=Math.max(0,raptor.stunned-dt);
  const distance=Math.hypot(player.x-raptor.x,player.z-raptor.z);
  const hearingRadius=isRunning?10:isCrouching?3:6;
- if(distance<hearingRadius)raptor.alert=5;
+ // Footsteps reveal the player's last position; they do not give the predator perfect tracking.
+ if(distance<hearingRadius){
+  raptor.lastX=player.x;raptor.lastZ=player.z;
+  raptor.alert=Math.max(raptor.alert,isRunning?5:2);
+  raptor.investigate=6;
+ }
  raptor.alert=Math.max(0,raptor.alert-dt);
- if(distance<hearingRadius){raptor.lastX=player.x;raptor.lastZ=player.z;raptor.investigate=6}
  raptor.investigate=Math.max(0,raptor.investigate-dt);
+ raptor.noiseTimer=Math.max(0,raptor.noiseTimer-dt);
+ raptor.searchPause=Math.max(0,raptor.searchPause-dt);
+ if(raptor.noiseTimer>0&&raptor.alert<=0){
+  raptor.lastX=raptor.noiseX;raptor.lastZ=raptor.noiseZ;
+  raptor.investigate=Math.max(raptor.investigate,raptor.noiseTimer);
+ }
  raptor.mode=raptor.alert>0?'chase':raptor.investigate>0?'search':'patrol';
  let tx,tz;
  if(raptor.mode==='chase'){tx=player.x;tz=player.z}
- else if(raptor.mode==='search'){tx=raptor.lastX;tz=raptor.lastZ}
+ else if(raptor.mode==='search'){
+  tx=raptor.lastX;tz=raptor.lastZ;
+  if(Math.hypot(tx-raptor.x,tz-raptor.z)<.85&&raptor.searchPause<=0){
+   raptor.searchPause=1.8;
+   raptor.investigate=Math.min(raptor.investigate,2);
+  }
+ }
  else{
   [tx,tz]=raptorRoute[raptor.waypoint];
   if(Math.hypot(tx-raptor.x,tz-raptor.z)<.6)raptor.waypoint=(raptor.waypoint+1)%raptorRoute.length;
@@ -603,7 +619,7 @@ function updateRaptor(dt,isRunning,isCrouching){
   const [wx,wz]=raptor.path[0],dx=wx-raptor.x,dz=wz-raptor.z,dist=Math.hypot(dx,dz);
   if(dist<.24)raptor.path.shift();
   else{
-   const speed=raptor.stunned>0?0:(raptor.mode==='chase'?2.15:1.0),step=Math.min(dist,speed*dt);
+   const speed=raptor.stunned>0||raptor.searchPause>0?0:(raptor.mode==='chase'?2.15:raptor.mode==='search'?1.25:1.0),step=Math.min(dist,speed*dt);
    const nx=raptor.x+dx/dist*step,nz=raptor.z+dz/dist*step;
    if(passable(nx,raptor.z))raptor.x=nx;
    if(passable(raptor.x,nz))raptor.z=nz;
@@ -640,6 +656,9 @@ function firePistol(){
  if(weapon.fireCooldown>0||weapon.reloadTimer>0)return;
  if(weapon.ammo<=0){notify('МАГАЗИН ПУСТ — R / Y ПЕРЕЗАРЯДКА',1.4);return}
  weapon.ammo--;weapon.shots++;weapon.fireCooldown=.26;
+ // Gunshots attract the predator to the muzzle's location even without a hit.
+ raptor.noiseX=player.x;raptor.noiseZ=player.z;raptor.noiseTimer=7;
+ raptor.lastX=player.x;raptor.lastZ=player.z;raptor.investigate=7;raptor.searchPause=0;raptor.pathTimer=0;
  muzzleLight.position.set(player.x,1.45,player.z);
  muzzleLight.intensity=5;
  // The gun fires in the approved camera aim direction, not movement direction.
@@ -653,7 +672,7 @@ function firePistol(){
   raptor.stunned=.45;raptor.windup=0;raptorHitFlash=.18;raptor.alert=8;raptor.pathTimer=0;
   notify(raptor.health===0?'ХИЩНИК НЕЙТРАЛИЗОВАН':'ПОПАДАНИЕ! ЗДОРОВЬЕ ХИЩНИКА: '+raptor.health+'%',1.2);
  }else{
-  raptor.alert=6;notify('ВЫСТРЕЛ',.5);
+  raptor.alert=Math.max(raptor.alert,1.5);notify('ВЫСТРЕЛ — ШУМ ПРИВЛЁК ХИЩНИКА',1.4);
  }
 }
 function updateWeapon(dt,p){
