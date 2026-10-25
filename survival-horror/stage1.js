@@ -513,6 +513,23 @@ function animateExternalRaptor(moving){
 loadExternalRaptor();
 const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0,health:100,stunned:0,lastX:6,lastZ:4,windup:0,investigate:0};
 const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
+// Diegetic warning light: brighter and faster as the predator approaches.
+const threatLight=new BABYLON.PointLight('predator proximity warning',new BABYLON.Vector3(0,2,0),scene);
+threatLight.diffuse=new BABYLON.Color3(1,.12,.075);
+threatLight.intensity=0;
+threatLight.range=7;
+let threatClock=0;
+function updateThreatLighting(dt){
+ threatClock+=dt;
+ if(raptor.health<=0){threatLight.intensity=0;return}
+ const distance=Math.hypot(player.x-raptor.x,player.z-raptor.z);
+ const proximity=Math.max(0,1-distance/8);
+ const danger=raptor.windup>0?1:raptor.mode==='chase'?.7:.3;
+ const frequency=raptor.windup>0?14:5;
+ const pulse=.55+.45*Math.sin(threatClock*frequency);
+ threatLight.position.set(raptor.x,2,raptor.z);
+ threatLight.intensity=proximity*danger*(.4+.65*pulse);
+}
 let health=100;
 const survival={medkits:1,kitCollected:false,healHeld:false,ammoCollected:false,extraMedCollected:false};
 const objectives={escape:false};
@@ -814,7 +831,7 @@ function interact(){
 function update(dt){
  // Deterministic, subtle emergency lighting pulse, no gameplay dependency.
  const pulse=.83+.17*Math.sin(performance.now()*.0035);
- light.intensity=10+2.5*pulse;
+ light.intensity=7.2+1.6*pulse;
  beacon.emissiveColor=new BABYLON.Color3(.8,.12,.09).scale(.7+.3*pulse);
  const p=gamepad(),button=i=>!!p?.buttons[i]?.pressed;
  // Left stick / WASD moves relative to the shoulder camera.
@@ -877,6 +894,7 @@ function update(dt){
   strand.rotation.z=(i-3.5)*.06+Math.sin(walkCycle*.6+i*.6)*.035*walkBlend;
  }
  updateRaptor(dt,running&&length>.1,crouch);
+ updateThreatLighting(dt);
  updateWeapon(dt,p);
  const heal=pressed('KeyH')||button(4);
  if(heal&&!survival.healHeld)useMedkit();
