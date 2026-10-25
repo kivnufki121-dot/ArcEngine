@@ -13,7 +13,7 @@ scene.ambientColor=new BABYLON.Color3(.16,.2,.22);
 const hemi=new BABYLON.HemisphericLight('fill',new BABYLON.Vector3(0,1,0),scene);hemi.intensity=.72;
 const light=new BABYLON.PointLight('emergency',new BABYLON.Vector3(0,4,0),scene);
 light.diffuse=new BABYLON.Color3(.95,.3,.2);light.intensity=12;light.range=25;
-const camera=new BABYLON.FreeCamera('fixed cinematic camera',new BABYLON.Vector3(0,12,14),scene);
+const camera=new BABYLON.FreeCamera('third person shoulder camera',new BABYLON.Vector3(-10,3.3,14),scene);
 camera.fov=.85;camera.minZ=.1;scene.activeCamera=camera;
 const material=(name,hex,glow=0)=>{const m=new BABYLON.StandardMaterial(name,scene);m.diffuseColor=BABYLON.Color3.FromHexString(hex);m.specularColor=new BABYLON.Color3(.07,.08,.09);if(glow)m.emissiveColor=m.diffuseColor.scale(glow);return m};
 const wall=material('wall','#435653'),floor=material('floor','#273632'),steel=material('steel','#667b77'),dark=material('dark','#182725'),green=material('keycard','#65ffba',.75),red=material('locked','#e26150',.65),gold=material('save lamp','#d5bc7e',.6),heroMat=material('survivor','#90b2a8');
@@ -57,10 +57,10 @@ addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','Ar
 addEventListener('keyup',e=>controls.delete(e.code));
 addEventListener('blur',()=>controls.clear());
 const pressed=k=>controls.has(k);
-let active=false,prevAction=false,prevDodge=false,prevSave=false,prevView=false,notice='',noticeTime=0,clock=0,zone=-1,frames=0,fps=0,fpstime=0,dodgeTime=0,dodgeCooldown=0;
-let shoulder=false,shoulderYaw=0,shoulderPitch=.2;
-canvas.addEventListener('click',()=>{if(active&&shoulder&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.()});
-document.addEventListener('mousemove',e=>{if(active&&shoulder&&document.pointerLockElement===canvas){shoulderYaw+=e.movementX*.0025;shoulderPitch=clamp(shoulderPitch-e.movementY*.002,-.35,.65)}});
+let active=false,prevAction=false,prevDodge=false,prevSave=false,notice='',noticeTime=0,clock=0,frames=0,fps=0,fpstime=0,dodgeTime=0,dodgeCooldown=0;
+let shoulderYaw=Math.PI,shoulderPitch=.2;
+canvas.addEventListener('click',()=>{if(active&&document.pointerLockElement!==canvas)canvas.requestPointerLock?.()});
+document.addEventListener('mousemove',e=>{if(active&&document.pointerLockElement===canvas){shoulderYaw+=e.movementX*.0025;shoulderPitch=clamp(shoulderPitch-e.movementY*.002,-.35,.65)}});
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const near=(x,z,r=2.3)=>Math.hypot(player.x-x,player.z-z)<r;
 const notify=(s,t=2.8)=>{notice=s;noticeTime=t};
@@ -74,29 +74,18 @@ function move(dx,dz){
  if(passable(player.x+dx,player.z))player.x+=dx;
  if(passable(player.x,player.z+dz))player.z+=dz;
 }
-// Camera is locked to a room shot, not attached to the moving player.
-// Input stays in world coordinates when shots change.
-const shots=[
- {position:[0,17,24],target:[0,0,8]},
- {position:[-18,18,15],target:[0,0,0]},
- {position:[8,17,4],target:[0,0,-8]}
-];
+// Single third-person shoulder camera; no fixed camera zones or toggles.
 function updateCamera(dt){
- if(shoulder){
-  const distance=4.3,side=.85;
-  const sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
-  const pos=new BABYLON.Vector3(player.x-sy*distance+cy*side,2.35+Math.sin(shoulderPitch)*2.2,player.z-cy*distance-sy*side);
-  camera.position=BABYLON.Vector3.Lerp(camera.position,pos,Math.min(1,dt*13));
-  camera.setTarget(new BABYLON.Vector3(player.x+sy*3,1.3+Math.sin(shoulderPitch)*3,player.z+cy*3));
-  return;
- }
- const next=player.z>4?0:player.z< -4?2:1;
- if(zone===next)return;
- zone=next;
- const shot=shots[zone];
- camera.position.set(...shot.position);
- camera.setTarget(new BABYLON.Vector3(...shot.target));
- notify(['СКЛАД ОБОРУДОВАНИЯ','ЦЕНТРАЛЬНЫЙ КОРИДОР','СЕКТОР УПРАВЛЕНИЯ'][zone],1.3);
+ const distance=4.0,side=.65;
+ const sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
+ const desired=new BABYLON.Vector3(player.x-sy*distance+cy*side,2.35+Math.sin(shoulderPitch)*2.0,player.z-cy*distance-sy*side);
+ // Keep camera inside the current room when a wall blocks the desired position.
+ const focus=new BABYLON.Vector3(player.x,1.45,player.z);
+ const ray=desired.subtract(focus);
+ const hit=scene.pickWithRay(new BABYLON.Ray(focus,ray.normalize(),ray.length()),mesh=>mesh.isPickable&&mesh!==character);
+ const target=hit?.hit?focus.add(ray.normalize().scale(Math.max(.75,hit.distance-.2))):desired;
+ camera.position=BABYLON.Vector3.Lerp(camera.position,target,Math.min(1,dt*12));
+ camera.setTarget(new BABYLON.Vector3(player.x+sy*2.6,1.35+Math.sin(shoulderPitch)*2.2,player.z+cy*2.6));
 }
 function load(){
  try{
@@ -128,20 +117,15 @@ function interact(){
 }
 function update(dt){
  const p=gamepad(),button=i=>!!p?.buttons[i]?.pressed;
- // All three camera shots face toward negative Z, keeping screen-left/right consistent.
+ // Left stick / WASD moves relative to the shoulder camera.
  let mx=Number(pressed('KeyD')||pressed('ArrowRight'))-Number(pressed('KeyA')||pressed('ArrowLeft'))+dz(p?.axes[0]||0);
  let mz=Number(pressed('KeyS')||pressed('ArrowDown'))-Number(pressed('KeyW')||pressed('ArrowUp'))+dz(p?.axes[1]||0);
  const length=Math.hypot(mx,mz);if(length>1){mx/=length;mz/=length}
- const viewKey=pressed('KeyV')||button(3);
- if(viewKey&&!prevView){shoulder=!shoulder;zone=-1;shoulderYaw=player.heading;notify(shoulder?'КАМЕРА ИЗ-ЗА ПЛЕЧА':'ФИКСИРОВАННАЯ КАМЕРА');if(!shoulder&&document.pointerLockElement===canvas)document.exitPointerLock?.()}
- prevView=viewKey;
- if(shoulder){
-  shoulderYaw+=dz(p?.axes[2]||0)*dt*2.6;
-  shoulderPitch=clamp(shoulderPitch-dz(p?.axes[3]||0)*dt*1.5,-.35,.65);
-  const sx=mx,sz=mz,sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
-  mx=cy*sx+sy*(-sz);
-  mz=-sy*sx+cy*(-sz);
- }
+ shoulderYaw+=dz(p?.axes[2]||0)*dt*2.6;
+ shoulderPitch=clamp(shoulderPitch-dz(p?.axes[3]||0)*dt*1.5,-.35,.65);
+ const sx=mx,sz=mz,sy=Math.sin(shoulderYaw),cy=Math.cos(shoulderYaw);
+ mx=cy*sx-sy*sz;
+ mz=-sy*sx-cy*sz;
  const crouch=pressed('ControlLeft')||pressed('ControlRight')||button(1);
  const running=(pressed('ShiftLeft')||pressed('ShiftRight')||button(10))&&!crouch&&player.stamina>1;
  const dodge=pressed('Space')||button(2);
@@ -165,12 +149,12 @@ function update(dt){
  updateCamera(dt);
  if(noticeTime>0)noticeTime-=dt;else notice='';
  $('message').textContent=notice;
- $('status').innerHTML='СЕКТОР A-01 · '+['СКЛАД','КОРИДОР','УПРАВЛЕНИЕ'][zone]+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · V / Y камера</small>';
+ $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие, <b>V</b> — переключить камеру.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, Y — переключить камеру, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Фиксированные камеры. Смена ракурса не меняет направления управления. Тестовая геометрия и временный персонаж.</small></p>';
-$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
-$('continue').onclick=()=>{load();active=true;intro.style.display='none'};
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Тестовая геометрия и временный персонаж.</small></p>';
+$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
+$('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
 engine.runRenderLoop(()=>{
  const now=performance.now(),dt=Math.min(.05,(now-previous)/1000);previous=now;
