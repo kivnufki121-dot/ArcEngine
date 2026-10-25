@@ -195,9 +195,44 @@ for(const side of [-1,1]){
  raptorPart('sickle claw',.13,.08,.3,side*.25,.1,-.14,raptorFeather);
 }
 for(let i=0;i<4;i++)raptorPart('tail feathers',.16,.13,.53,0,1.04,.86+i*.34,raptorCoat);
-const raptor={x:10,z:7,mode:'patrol',alert:0,attackCooldown:0,waypoint:0};
-const raptorRoute=[[10,7],[13,5],[11,1],[7,3]];
+const raptor={x:6,z:4,mode:'patrol',alert:0,attackCooldown:0,waypoint:0,path:[],pathTimer:0};
+const raptorRoute=[[6,4],[6,0],[9,-3],[5,2]];
 let health=100;
+// Grid search prevents the predator from trying to walk through walls.
+// The grid is sampled from the exact same passable() collision test as the heroine.
+function raptorPath(startX,startZ,targetX,targetZ){
+ const cell=1,cols=33,rows=29,ox=-16,oz=-14;
+ const idx=(x,z)=>z*cols+x;
+ const coord=(x,z)=>[ox+x*cell,oz+z*cell];
+ const nearest=(x,z)=>[Math.max(0,Math.min(cols-1,Math.round((x-ox)/cell))),Math.max(0,Math.min(rows-1,Math.round((z-oz)/cell)))];
+ const [sx,sz]=nearest(startX,startZ),[gx,gz]=nearest(targetX,targetZ);
+ const start=idx(sx,sz),goal=idx(gx,gz);
+ const queue=[start],visited=new Set([start]),previous=new Map();
+ let reached=-1,best=start,bestScore=Infinity;
+ for(let head=0;head<queue.length;head++){
+  const cur=queue[head],x=cur%cols,z=Math.floor(cur/cols);
+  const score=Math.abs(x-gx)+Math.abs(z-gz);
+  if(score<bestScore){best=cur;bestScore=score}
+  if(cur===goal){reached=cur;break}
+  for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+   const nx=x+dx,nz=z+dz;
+   if(nx<0||nx>=cols||nz<0||nz>=rows)continue;
+   const next=idx(nx,nz);
+   if(visited.has(next))continue;
+   const [wx,wz]=coord(nx,nz);
+   if(!passable(wx,wz))continue;
+   visited.add(next);previous.set(next,cur);queue.push(next);
+  }
+ }
+ if(reached<0)reached=best;
+ const path=[];
+ while(reached!==start&&previous.has(reached)){
+  path.push(coord(reached%cols,Math.floor(reached/cols)));
+  reached=previous.get(reached);
+ }
+ path.reverse();
+ return path;
+}
 function updateRaptor(dt,isRunning,isCrouching){
  const distance=Math.hypot(player.x-raptor.x,player.z-raptor.z);
  const hearingRadius=isRunning?10:isCrouching?3:6;
@@ -210,14 +245,21 @@ function updateRaptor(dt,isRunning,isCrouching){
   [tx,tz]=raptorRoute[raptor.waypoint];
   if(Math.hypot(tx-raptor.x,tz-raptor.z)<.6)raptor.waypoint=(raptor.waypoint+1)%raptorRoute.length;
  }
- const dx=tx-raptor.x,dz=tz-raptor.z,dist=Math.hypot(dx,dz);
- if(dist>.3){
-  const speed=raptor.mode==='chase'?2.15:1.0,step=Math.min(dist,speed*dt);
-  // Respect the same collision volumes as the player.
-  const nx=raptor.x+dx/dist*step,nz=raptor.z+dz/dist*step;
-  if(passable(nx,raptor.z))raptor.x=nx;
-  if(passable(raptor.x,nz))raptor.z=nz;
-  raptorRoot.rotation.y=Math.atan2(-dx,-dz);
+ raptor.pathTimer-=dt;
+ if(raptor.pathTimer<=0||!raptor.path.length){
+  raptor.path=raptorPath(raptor.x,raptor.z,tx,tz);
+  raptor.pathTimer=raptor.mode==='chase'?.35:1.0;
+ }
+ if(raptor.path.length){
+  const [wx,wz]=raptor.path[0],dx=wx-raptor.x,dz=wz-raptor.z,dist=Math.hypot(dx,dz);
+  if(dist<.24)raptor.path.shift();
+  else{
+   const speed=raptor.mode==='chase'?2.15:1.0,step=Math.min(dist,speed*dt);
+   const nx=raptor.x+dx/dist*step,nz=raptor.z+dz/dist*step;
+   if(passable(nx,raptor.z))raptor.x=nx;
+   if(passable(raptor.x,nz))raptor.z=nz;
+   raptorRoot.rotation.y=Math.atan2(-dx,-dz);
+  }
  }
  raptorRoot.position.set(raptor.x,Math.sin(performance.now()*.007)*.025,raptor.z);
  raptor.attackCooldown=Math.max(0,raptor.attackCooldown-dt);
