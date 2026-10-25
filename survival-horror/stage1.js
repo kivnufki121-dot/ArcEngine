@@ -201,7 +201,7 @@ function updateSurvival(dt,p,button,running,crouch,length){
   if(dist<1.5&&predator.attackTimer<=0){
    survival.health=Math.max(0,survival.health-(dodgeTime>0?0:22));
    predator.attackTimer=1.3;notify(dodgeTime>0?'АТАКА УКЛОНЕНА':'ХИЩНИК АТАКУЕТ!',1);
-   if(survival.health<=0){survival.gameOver=true;broadcast('СВЯЗЬ ПОТЕРЯНА. Нажмите «НОВАЯ ИГРА», чтобы начать заново.',15)}
+   if(survival.health<=0){survival.gameOver=true;active=false;intro.style.display='flex';broadcast('СВЯЗЬ ПОТЕРЯНА. Нажмите «НОВАЯ ИГРА», чтобы начать заново.',15)}
   }
  }
  predatorRoot.setEnabled(predator.health>0);
@@ -423,7 +423,7 @@ function update(dt){
 }
 const intro=$('intro'),panel=$('panel');
 panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 1.03: динозавр с патрулём и преследованием, пистолет, здоровье, патроны, аптечки, инвентарь и радиосвязь. F / RT — выстрел, R / Y — перезарядка, H / LB — аптечка, I / Back — инвентарь.</small></p>';
-$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
+$('new').onclick=()=>{if(survival.gameOver){localStorage.removeItem('blacksite-raptor-stage1-v1');location.reload();return}localStorage.removeItem('blacksite-raptor-stage1-v1');active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
 engine.runRenderLoop(()=>{
