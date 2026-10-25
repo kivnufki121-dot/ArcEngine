@@ -94,7 +94,7 @@ const World3D = {
         // Sharpness on HiDPI: render in physical pixels (on mobile —
         // no more than 1.5x, otherwise fill rate eats the frame).
         const dpr = window.devicePixelRatio || 1;
-        const cap = IS_MOBILE ? 1.5 : 2;
+        const cap = IS_MOBILE ? 1.25 : 1.5;
         this.engine.setHardwareScalingLevel(1 / Math.min(dpr, cap));
         this._bg = new BABYLON.Color4(0.133, 0.133, 0.133, 1);
         // The toon plugin attaches to materials at their CREATION — register it
