@@ -20,13 +20,13 @@ const wall=material('wall','#435653'),floor=material('floor','#273632'),steel=ma
 // Visual Overhaul 2.0 — renderer-only pass, separate from collision and gameplay.
 scene.imageProcessingConfiguration.toneMappingEnabled=true;
 scene.imageProcessingConfiguration.toneMappingType=BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-scene.imageProcessingConfiguration.exposure=1.15;
-scene.imageProcessingConfiguration.contrast=1.25;
+scene.imageProcessingConfiguration.exposure=.92;
+scene.imageProcessingConfiguration.contrast=1.12;
 const visualPipeline=new BABYLON.DefaultRenderingPipeline('blacksite cinematic',true,scene,[camera]);
 visualPipeline.fxaaEnabled=true;
 visualPipeline.bloomEnabled=true;
-visualPipeline.bloomThreshold=.72;
-visualPipeline.bloomWeight=.23;
+visualPipeline.bloomThreshold=1.18;
+visualPipeline.bloomWeight=.09;
 visualPipeline.bloomKernel=42;
 visualPipeline.samples=2;
 const visualMetal=material('brushed industrial steel','#39474c');
@@ -268,11 +268,13 @@ dustParticles.updateSpeed=.02;dustParticles.start();
 // Geometry-only preview: detailed mesh, skinning, hair strands and cloth simulation come later.
 const character=new BABYLON.TransformNode('heroine root',scene);
 const suit=material('black armored suit','#15131f'),armor=material('violet armor','#272237');
-const neon=material('magenta luminous piping','#ff2b9f',.95);
-const skin=material('skin','#e5b4ac'),hair=material('black violet hair','#16152d'),hairPurple=material('purple hair','#8c35d6'),hairBlue=material('blue hair','#176bd0');
+const neon=material('magenta luminous piping','#ad426e',.12);
+const skin=material('skin','#b99a8d'),hair=material('black violet hair','#13151d'),hairPurple=material('purple hair','#34314d'),hairBlue=material('blue hair','#273e57');
 const boot=material('heavy boots','#15131b');
 function heroBox(name,w,h,d,x,y,z,mat,parent=character){
- const mesh=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
+ const rounded=/armored sleeve|leg armor|glove|heavy boot|left armored shoulder|right armored shoulder|dark hair crown|high ponytail strand/.test(name);
+ const mesh=rounded?BABYLON.MeshBuilder.CreateCapsule(name,{height:h,radius:Math.min(w,d)*.46,tessellation:12,capSubdivisions:5},scene):BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
+ if(rounded){mesh.scaling.x=w/(Math.min(w,d)*.92);mesh.scaling.z=d/(Math.min(w,d)*.92)}
  mesh.parent=parent;mesh.position.set(x,y,z);mesh.material=mat;mesh.isPickable=false;return mesh;
 }
 function heroBall(name,diameter,x,y,z,mat,parent=character){
@@ -291,7 +293,7 @@ for(const x of [-.15,.15]){
  heroBox('belt buckle',.12,.12,.36,x,1.00,-.03,metalEdge);
 }
 heroBox('backpack frame',.37,.56,.13,0,1.38,.26,metalEdge);
-heroBox('backpack power cell',.23,.36,.15,0,1.38,.35,cyan);
+heroBox('backpack power cell',.23,.36,.15,0,1.38,.35,material('muted backpack screen','#3e8b83',.15));
 heroBox('utility belt',.53,.11,.37,0,.96,0,metalEdge);
 heroBox('left hip pouch',.18,.22,.22,-.31,.83,0,armor);
 heroBox('right hip pouch',.18,.22,.22,.31,.83,0,armor);
@@ -434,7 +436,7 @@ async function loadExternalRaptor(){
    });
    window.__blacksiteGltfLoader=true;
   }
-  // Compatibility bridge for ArcEngine's bundled Babylon core and newer glTF loader.
+  // Compatibility bridge only for older Babylon core versions; matched loaders should not need it.
   // The newer loader calls this Scene method, absent in some older Babylon builds.
   if(typeof scene._executeWithBlockedEntityCollection!=='function'){
    scene._executeWithBlockedEntityCollection=function(callback){
@@ -455,7 +457,7 @@ async function loadExternalRaptor(){
   const bounds=visual.getHierarchyBoundingVectors(true);
   const dimensions=bounds.max.subtract(bounds.min);
   const length=Math.max(dimensions.x,dimensions.z,.001);
-  visual.scaling.scaleInPlace(2.5/length);
+  visual.scaling.scaleInPlace(3.35/length);
   visual.position.y=-bounds.min.y*visual.scaling.y;
   visual.parent=raptorRoot;
   visual.rotation.y=Math.PI;
