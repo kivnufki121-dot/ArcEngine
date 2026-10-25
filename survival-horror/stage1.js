@@ -273,19 +273,48 @@ const raptorRoot=new BABYLON.TransformNode('raptor patrol root',scene);
 const raptorCoat=material('feathered raptor coat','#556b5c'),raptorFeather=material('raptor wing feathers','#9d9b72');
 const raptorEye=material('raptor eyes','#f2a84b',.65);
 function raptorPart(name,w,h,d,x,y,z,mat){
- const mesh=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
- mesh.parent=raptorRoot;mesh.position.set(x,y,z);mesh.material=mat;mesh.isPickable=false;return mesh;
+ // Smooth anatomical volumes replace the prototype's box-only silhouette.
+ const mesh=BABYLON.MeshBuilder.CreateSphere(name,{diameter:1,segments:12},scene);
+ mesh.scaling.set(w,h,d);mesh.parent=raptorRoot;
+ mesh.position.set(x,y,z);mesh.material=mat;mesh.isPickable=false;return mesh;
 }
+function raptorTalon(name,x,y,z,length,side,mat){
+ const mesh=BABYLON.MeshBuilder.CreateCylinder(name,{height:length,diameterTop:0,diameterBottom:.11,tessellation:8},scene);
+ mesh.parent=raptorRoot;mesh.position.set(x,y,z);
+ mesh.rotation.x=-Math.PI*.58;mesh.rotation.z=side*.2;
+ mesh.material=mat;mesh.isPickable=false;return mesh;
+}
+const raptorScale=material('raptor dark dorsal scales','#283b37');
+raptorScale.specularColor=new BABYLON.Color3(.23,.29,.25);
+raptorScale.specularPower=42;
+raptorCoat.specularColor=new BABYLON.Color3(.28,.33,.27);
+raptorCoat.specularPower=55;
+raptorFeather.specularColor=new BABYLON.Color3(.13,.14,.1);
 raptorPart('raptor body',.72,.58,1.25,0,1.02,0,raptorCoat);
 raptorPart('raptor neck',.35,.54,.4,0,1.36,-.54,raptorCoat);
 raptorPart('raptor skull',.4,.3,.57,0,1.62,-.83,raptorCoat);
 raptorPart('raptor muzzle',.31,.13,.45,0,1.52,-1.25,raptorFeather);
+raptorPart('dorsal shoulder muscle',.68,.31,.76,0,1.32,-.1,raptorScale);
+raptorPart('lower chest',.52,.38,.69,0,.85,-.21,raptorCoat);
+raptorPart('brow ridge',.43,.13,.32,0,1.73,-1.01,raptorScale);
+raptorPart('nostril ridge',.23,.09,.23,0,1.58,-1.43,raptorScale);
+for(const side of [-1,1]){
+ raptorPart('cheek scale',.11,.14,.27,side*.2,1.53,-.99,raptorScale);
+ for(let i=0;i<5;i++){
+  const z=-.22+i*.27;
+  const feather=raptorPart('back plumage',.13,.25,.43,side*(.18+i*.018),1.36-i*.025,z,raptorScale);
+  feather.rotation.x=-.35;
+ }
+ for(let i=0;i<4;i++)raptorTalon('jaw tooth',side*(.08+i*.018),1.41,-1.02-i*.115,.13,side,medMaterial);
+}
 const raptorLegs=[],raptorArms=[],raptorTail=[];
 for(const side of [-1,1]){
  raptorPart('raptor eye',.07,.08,.08,side*.22,1.7,-.96,raptorEye);
  const arm=raptorPart('feathered forearm',.18,.32,.7,side*.43,1.04,-.2,raptorFeather);
  const leg=raptorPart('raptor leg',.2,.73,.24,side*.25,.53,.27,raptorCoat);
  raptorPart('sickle claw',.13,.08,.3,side*.25,.1,-.14,raptorFeather);
+ raptorTalon('curved hunting claw',side*.25,.15,-.23,.31,side,raptorScale);
+ for(let toe=0;toe<3;toe++)raptorTalon('toe claw',side*.25+(toe-1)*.095,.11,-.2,.19,side,raptorScale);
  raptorArms.push(arm);raptorLegs.push(leg);
  for(let i=0;i<3;i++)raptorPart('wing feather',.12,.08,.28,side*(.44+i*.055),.88,-.44+i*.15,raptorFeather);
 }
@@ -642,7 +671,7 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Цель: '+currentObjective()+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':raptor.mode==='search'?'ИЩЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 2.1 Visual Edition: процедурные текстуры металла, маркировка Helix Meridian, ACES, bloom, сглаживание, туман и лабораторный декор. Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 2.2 Creature Visual Pass: сглаженная анатомия раптора, когти, чешуя, зубы, оперение. Visual Edition: процедурные текстуры металла, маркировка Helix Meridian, ACES, bloom, сглаживание, туман и лабораторный декор. Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
 $('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;survival.ammoCollected=false;survival.extraMedCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;raptor.windup=0;raptor.investigate=0;raptor.stunned=0;raptor.path=[];raptor.pathTimer=0;raptor.mode='patrol';raptorRoot.scaling.y=1;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
