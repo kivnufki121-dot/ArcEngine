@@ -23,6 +23,12 @@ const argPort = process.argv.find(a => /^--port=\d+$/.test(a));
 const envPort = /^\d+$/.test(process.env.PORT || '') ? Number(process.env.PORT) : null;
 const PORT_BASE = argPort ? Number(argPort.split('=')[1]) : (envPort ?? 8080);
 const NO_OPEN = process.argv.includes('--no-open');
+const openPathArg = process.argv.find(a => a.startsWith('--open-path='));
+const OPEN_PATH = openPathArg ? openPathArg.slice('--open-path='.length) : '/';
+if (!OPEN_PATH.startsWith('/') || OPEN_PATH.startsWith('//') || OPEN_PATH.includes('\\\\')) {
+  console.error('Invalid --open-path (must start with a single /)');
+  process.exit(1);
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -148,16 +154,17 @@ function listen(port, attempt = 0) {
   });
   server.listen(port, '127.0.0.1', async () => {
     const addr = `http://localhost:${port}/`;
+    const gameAddr = new URL(OPEN_PATH, addr).href;
     console.log(`\n${C.cyn}${C.b}  ArcEngine${C.r} ${C.dim}— dev server${C.r}`);
     console.log(`${C.dim}  ${'-'.repeat(46)}${C.r}`);
-    console.log(`  ${C.grn}${C.b}${addr}${C.r}`);
+    console.log(`  ${C.grn}${C.b}${gameAddr}${C.r}`);
     console.log(`${C.dim}  корень: ${ROOT}${C.r}`);
     console.log(`${C.dim}  кэш: no-store — правку .js видно после F5, без Ctrl+Shift+R${C.r}`);
     console.log(`${C.dim}  Ctrl+C — остановить${C.r}\n`);
     await preflight().catch(e => console.log(`${C.ylw}  (проверка ассетов пропущена: ${e.message})${C.r}\n`));
     if (!NO_OPEN) {
       const cmd = process.platform === 'win32' ? 'cmd' : (process.platform === 'darwin' ? 'open' : 'xdg-open');
-      const args = process.platform === 'win32' ? ['/c', 'start', '', addr] : [addr];
+      const args = process.platform === 'win32' ? ['/c', 'start', '', gameAddr] : [gameAddr];
       execFile(cmd, args, () => {});
     }
   });
