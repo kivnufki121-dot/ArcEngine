@@ -1,14 +1,11 @@
-# Animated PBR Velociraptor integration
+# PBR Velociraptor — asset received and inspected
 
-Source: https://sketchfab.com/3d-models/pbr-velociraptor-animated-8f1744af7b0847a2aabe3df90be802f0
+Provided file: `pbr_velociraptor_animated.glb` (19,405,936 bytes), GLB v2.
 
-Author: Ferocious Industries
-License listed on Sketchfab: Creative Commons Attribution (CC BY). Verify the license included with the downloaded archive and retain author attribution.
+Contents verified: 2 meshes, 1 skin, 26 animation clips, 2 materials, 8 embedded PNG textures. Animation names include Idle_01, Idle_02, Walk, Jog, Sprint, Bite_01, Bite_02, Leap_01, Tackle, Hurt_01, Death_01.
 
-The model's binary file is **not included** in this repository yet. Sketchfab/Fab requires a download flow which is not available to the automated build. Do not claim it is bundled.
+Model source: https://skfb.ly/oHoUE (verify actual author and license terms from download page).
 
-Expected filename: `survival-horror/assets/raptor/velociraptor.glb`
+Install: extract the companion `BLACKSITE_RAPTOR_PBR_ASSET_PACK.zip` into the project root, merging the `survival-horror/assets/raptor/` directory. The GLB is not stored in this GitHub repository because the available repository interface only supports UTF-8 text files.
 
-The game now tries to load that local GLB at startup, uses its animation groups (idle/walk/attack when named accordingly), and retains the existing procedural raptor if it is absent. A Babylon glTF loader is fetched from the official Babylon CDN only when a local model exists; thus an offline machine will require bundling the loader.
-
-Integration status: loader code added; actual asset download, animation naming, axis orientation, scale, visual QA, and game browser testing remain pending.
+Runtime loads `survival-horror/assets/raptor/velociraptor.glb` and maps Idle/Walk/Bite animations. Requires Babylon glTF loader from official CDN if not already available. Browser rendering and model orientation are not yet verified.
