@@ -54,9 +54,8 @@ block('save station light',-11,2.1,-11,1,.15,.4,gold);
 const character=new BABYLON.TransformNode('heroine root',scene);
 const suit=material('black armored suit','#15131f'),armor=material('violet armor','#272237');
 const neon=material('magenta luminous piping','#ff2b9f',.95),cyan=material('cyan accessories','#18d9f4',.9);
-const cloakWhite=material('white cloak','#e7e5e9'),trim=material('red cloak embroidery','#b52a36');
 const skin=material('skin','#e5b4ac'),hair=material('black violet hair','#16152d'),hairPurple=material('purple hair','#8c35d6'),hairBlue=material('blue hair','#176bd0');
-const fur=material('white fur','#f0eef1'),boot=material('heavy boots','#15131b');
+const boot=material('heavy boots','#15131b');
 function heroBox(name,w,h,d,x,y,z,mat,parent=character){
  const mesh=BABYLON.MeshBuilder.CreateBox(name,{width:w,height:h,depth:d},scene);
  mesh.parent=parent;mesh.position.set(x,y,z);mesh.material=mat;mesh.isPickable=false;return mesh;
@@ -66,6 +65,8 @@ function heroBall(name,diameter,x,y,z,mat,parent=character){
  mesh.parent=parent;mesh.position.set(x,y,z);mesh.material=mat;mesh.isPickable=false;return mesh;
 }
 const torso=heroBox('armored torso',.61,.72,.34,0,1.38,0,suit);
+heroBox('left armored shoulder',.24,.23,.38,-.39,1.74,0,armor);
+heroBox('right armored shoulder',.24,.23,.38,.39,1.74,0,armor);
 heroBox('chest armor',.53,.27,.38,0,1.55,-.02,armor);
 heroBox('waist',.43,.3,.31,0,.97,0,suit);
 heroBall('head',.33,0,2.03,-.01,skin);
@@ -76,12 +77,6 @@ for(let i=0;i<8;i++){
  const strand=heroBox('long ponytail strand',.045,1.17,.065,x,1.65,.26,i%3===0?hairBlue:i%3===1?hairPurple:hair);
  strand.rotation.z=(i-3.5)*.06;
 }
-const coatLeft=heroBox('white cape left',.52,1.57,.08,-.37,1.15,.29,cloakWhite);
-const coatRight=heroBox('white cape right',.52,1.57,.08,.37,1.15,.29,cloakWhite);
-heroBox('cape red border left',.055,1.56,.095,-.64,1.15,.29,trim);
-heroBox('cape red border right',.055,1.56,.095,.64,1.15,.29,trim);
-heroBox('cape lower red trim',1.3,.075,.1,0,.4,.3,trim);
-heroBox('fur shoulder collar',1.1,.23,.5,0,1.84,.1,fur);
 const leftArm=new BABYLON.TransformNode('left arm pivot',scene),rightArm=new BABYLON.TransformNode('right arm pivot',scene);
 const leftLeg=new BABYLON.TransformNode('left leg pivot',scene),rightLeg=new BABYLON.TransformNode('right leg pivot',scene);
 for(const [pivot,x,y] of [[leftArm,-.39,1.67],[rightArm,.39,1.67],[leftLeg,-.17,.87],[rightLeg,.17,.87]]){pivot.parent=character;pivot.position.set(x,y,0)}
