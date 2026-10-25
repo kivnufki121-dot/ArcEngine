@@ -636,6 +636,48 @@ function saveProgress(){
   notify('СОХРАНЕНО В БЕЗОПАСНОЙ КОМНАТЕ');
  }catch(e){notify('СОХРАНЕНИЕ НЕДОСТУПНО')}
 }
+// Cinematic story sequences are self-contained and keyboard/gamepad accessible.
+let cinematicActive=false;
+const cinematic=document.createElement('div');
+cinematic.id='blacksite-cinematic';
+cinematic.style.cssText='position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(1,6,10,.97),rgba(6,15,21,.9));color:#e5eeee;font-family:Arial,sans-serif;text-align:center;padding:5vw;box-sizing:border-box';
+cinematic.innerHTML='<div style="max-width:850px"><div id="cinematic-label" style="color:#f26453;letter-spacing:.32em;font-size:13px;margin-bottom:25px">HELIX MERIDIAN</div><h1 id="cinematic-title" style="font-size:clamp(27px,5vw,60px);letter-spacing:.1em;margin:0 0 22px"></h1><p id="cinematic-body" style="font-size:clamp(16px,2vw,23px);line-height:1.65;white-space:pre-line"></p><button id="cinematic-next" style="margin-top:28px;padding:15px 32px;background:#8e302d;color:white;border:1px solid #e37563;cursor:pointer;font-size:17px">ПРОДОЛЖИТЬ ▶</button><p style="opacity:.55;font-size:13px">Enter / Пробел / Xbox A — продолжить</p></div>';
+document.body.appendChild(cinematic);
+let cinematicSlides=[],cinematicIndex=0,cinematicDone=null,cinematicPadHeld=false;
+function showCinematic(slides,done){
+ cinematicSlides=slides;cinematicIndex=0;cinematicDone=done;cinematicActive=true;
+ active=false;document.exitPointerLock?.();cinematic.style.display='flex';renderCinematic();
+}
+function renderCinematic(){
+ const slide=cinematicSlides[cinematicIndex];
+ if(!slide)return;
+ document.getElementById('cinematic-title').textContent=slide[0];
+ document.getElementById('cinematic-body').textContent=slide[1];
+ document.getElementById('cinematic-next').textContent=cinematicIndex===cinematicSlides.length-1?'ЗАВЕРШИТЬ ▶':'ДАЛЕЕ ▶';
+}
+function nextCinematic(){
+ if(!cinematicActive)return;
+ cinematicIndex++;
+ if(cinematicIndex<cinematicSlides.length){renderCinematic();return}
+ cinematic.style.display='none';cinematicActive=false;
+ const done=cinematicDone;cinematicDone=null;if(done)done();
+}
+document.getElementById('cinematic-next').onclick=nextCinematic;
+addEventListener('keydown',e=>{if(cinematicActive&&['Enter','Space'].includes(e.code)){e.preventDefault();nextCinematic()}});
+function introSequence(){
+ showCinematic([
+  ['ИНЦИДЕНТ A-01','02:14. Сибирский исследовательский комплекс HELIX MERIDIAN.\\nЭксперимент по восстановлению вымерших видов вышел из-под контроля.'],
+  ['ПОСЛЕДНИЙ СИГНАЛ','«Всем сотрудникам: карантин нарушен. Объект RAPTOR-7 покинул камеру содержания. Не приближайтесь к лабораторному крылу».'],
+  ['ПРОТОКОЛ ЭВАКУАЦИИ','Вы — единственная сотрудница, оставшаяся в секторе A-01.\\nНайдите ключ-карту, восстановите питание шлюза и доберитесь до выхода.']
+ ],()=>{active=true;canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')});
+}
+function endingSequence(){
+ showCinematic([
+  ['ШЛЮЗ РАЗБЛОКИРОВАН','Герметичная дверь открывается. За спиной слышен металлический скрежет — RAPTOR-7 снова выходит на охоту.'],
+  ['ПРОТОКОЛ ЗАВЕРШЁН','Вы выжили в секторе A-01 и восстановили систему эвакуации.\\nАрхивы: '+story.read.filter(Boolean).length+'/3. Здоровье: '+health+'%.'],
+  ['BLACKSITE: RAPTOR','КОНЕЦ ИСТОРИИ: ПОБЕГ ИЗ СЕКТОРА A-01.\\nСигнал тревоги стихает. Но за дверью комплекса кто-то отвечает на зов хищника…']
+ ],()=>{intro.style.display='flex';active=false;document.exitPointerLock?.()});
+}
 function interact(){
  if(!survival.ammoCollected&&near(9,9,1.8)){survival.ammoCollected=true;weapon.reserve+=8;sync();notify('НАЙДЕНЫ ПАТРОНЫ: +8');return}
  if(!survival.extraMedCollected&&near(-8,8,1.8)){survival.extraMedCollected=true;survival.medkits++;sync();notify('НАЙДЕНА АПТЕЧКА: +1');return}
@@ -646,7 +688,7 @@ function interact(){
  if(near(-11,-11)){saveProgress();return}
  if(near(0,-13,3.4)){
   if(!player.key||!player.power){notify('ШЛЮЗ ЗАБЛОКИРОВАН: НУЖНЫ КЛЮЧ И ПИТАНИЕ');return}
-  player.door=true;sync();notify('ШЛЮЗ ОТКРЫТ. ЭТАП 1 ПРОЙДЕН!',8);return;
+  player.door=true;sync();saveProgress();endingSequence();return;
  }
  notify('ПОБЛИЗОСТИ НЕТ ИНТЕРАКТИВНЫХ ОБЪЕКТОВ',1.4);
 }
@@ -725,13 +767,14 @@ function update(dt){
  $('status').innerHTML='СЕКТОР A-01 · '+'ЛАБОРАТОРИЯ'+'<br>Ключ-карта: '+(player.key?'ДА':'НЕТ')+' · Питание: '+(player.power?'ВКЛ':'ВЫКЛ')+'<br>Цель: '+currentObjective()+'<br>Здоровье: '+health+'% · Хищник: '+(raptor.mode==='chase'?'ПРЕСЛЕДУЕТ':raptor.mode==='search'?'ИЩЕТ':'ПАТРУЛЬ')+'<br>Архивы: '+story.read.filter(Boolean).length+'/3 · E / A — читать терминалы'+'<br>Аптечки: '+survival.medkits+' · H / LB — лечение'+'<br>Пистолет: '+weapon.ammo+'/'+weapon.capacity+' · Запас: '+weapon.reserve+(weapon.reloadTimer>0?' · ПЕРЕЗАРЯДКА':'')+'<br>Выносливость: '+Math.ceil(player.stamina)+'% · '+fps+' FPS<br><small>WASD / Xbox LS · E / A взаимодействие · Space / X уклонение · обзор: мышь / правый стик</small>';
 }
 const intro=$('intro'),panel=$('panel');
-panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 2.2 Creature Visual Pass: сглаженная анатомия раптора, когти, чешуя, зубы, оперение. Visual Edition: процедурные текстуры металла, маркировка Helix Meridian, ACES, bloom, сглаживание, туман и лабораторный декор. Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
-$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;survival.ammoCollected=false;survival.extraMedCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;raptor.windup=0;raptor.investigate=0;raptor.stunned=0;raptor.path=[];raptor.pathTimer=0;raptor.mode='patrol';raptorRoot.scaling.y=1;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=true;intro.style.display='none';canvas.requestPointerLock?.();notify('НАЙДИТЕ КЛЮЧ-КАРТУ')};
+panel.innerHTML='<h2>BLACKSITE: RAPTOR</h2><p>ЭТАП 1 — СЕКТОР A-01. Найдите ключ-карту на складе, восстановите питание в пункте управления и откройте северный шлюз. Сохранение доступно только в безопасной комнате.</p><p><b>WASD</b> — движение, <b>Shift</b> — бег, <b>Ctrl</b> — присесть, <b>Space</b> — уклонение, <b>E</b> — взаимодействие; мышь — обзор.</p><p><b>Xbox:</b> левый стик — движение, L3 — бег, B — присесть, X — уклонение, A — взаимодействие, правый стик — обзор.</p><button id="new">НОВАЯ ИГРА</button> <button id="continue">ПРОДОЛЖИТЬ</button><p><small>Камера из-за плеча. Нажмите на игровое поле для управления мышью; Esc освобождает курсор. Версия 3.0 Story Edition: вступительные и финальные катсцены, завершение сюжетной главы. Creature Visual Pass: сглаженная анатомия раптора, когти, чешуя, зубы, оперение. Visual Edition: процедурные текстуры металла, маркировка Helix Meridian, ACES, bloom, сглаживание, туман и лабораторный декор. Visual Overhaul: ACES, bloom, сглаживание, туман, металлические панели и лабораторный декор. Хищник предупреждает об атаке, ищет последнюю позицию игрока; дополнительные патроны и аптечка, журнал текущей цели, сохранение ресурсов и архивов. E / A — читать терминалы и взаимодействовать, H / LB — аптечка, F / RT — стрелять, R / Y — перезарядить.</small></p>';
+$('new').onclick=()=>{localStorage.removeItem('blacksite-raptor-stage1-v1');health=100;survival.medkits=1;survival.kitCollected=false;survival.ammoCollected=false;survival.extraMedCollected=false;weapon.ammo=8;weapon.reserve=24;raptor.health=100;raptorRoot.setEnabled(true);raptor.x=6;raptor.z=4;raptor.alert=0;raptor.windup=0;raptor.investigate=0;raptor.stunned=0;raptor.path=[];raptor.pathTimer=0;raptor.mode='patrol';raptorRoot.scaling.y=1;player.x=-10;player.z=10;player.key=false;player.power=false;player.door=false;story.read=[false,false,false];sync();active=false;intro.style.display='none';introSequence()};
 $('continue').onclick=()=>{load();active=true;intro.style.display='none';canvas.requestPointerLock?.()};
 let previous=performance.now();
 engine.runRenderLoop(()=>{
  const now=performance.now(),dt=Math.min(.05,(now-previous)/1000);previous=now;
  if(document.hidden)return;
+ if(cinematicActive){const gp=gamepad();const down=!!gp?.buttons[0]?.pressed;if(down&&!cinematicPadHeld)nextCinematic();cinematicPadHeld=down;}
  if(active)update(dt);
  scene.render();
  frames++;fpstime+=dt;if(fpstime>=.6){fps=Math.round(frames/fpstime);frames=0;fpstime=0}
