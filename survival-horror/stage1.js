@@ -184,13 +184,16 @@ function update(dt){
  move(mx*speed*dt,mz*speed*dt);
  player.stamina=clamp(player.stamina+(running&&length>.1?-23:16)*dt,0,100);
  player.crouch=crouch;
- if(length>.1)player.heading=Math.atan2(mx,mz);
+ // Aim-locked facing: left/right strafe and backward movement never rotate the heroine.
+ // The modeled face points toward local -Z, so yaw equals the shoulder camera yaw.
+ player.heading=shoulderYaw;
  character.position.set(player.x,0,player.z);
  character.scaling.y=crouch?.72:1;
- // The mesh was modeled facing -Z (ponytail at +Z); align its front with travel.
- character.rotation.y=player.heading+Math.PI;
+ character.rotation.y=shoulderYaw;
+ // Lightweight directional gait: reverse steps when moving backward.
  walkCycle+=dt*(running?12:8)*(length>.1?1:0);
- const swing=length>.1?Math.sin(walkCycle)*.45:0;
+ const gaitDirection=sz>0.15?-1:1;
+ const swing=length>.1?Math.sin(walkCycle)*.45*gaitDirection:0;
  leftLeg.rotation.x=swing;rightLeg.rotation.x=-swing;
  leftArm.rotation.x=-swing*.75;rightArm.rotation.x=swing*.75;
  if(length<=.1){leftLeg.rotation.x*=.7;rightLeg.rotation.x*=.7;leftArm.rotation.x*=.7;rightArm.rotation.x*=.7;}
