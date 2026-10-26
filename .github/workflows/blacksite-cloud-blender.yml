@@ -22,14 +22,16 @@ jobs:
       - name: Install Blender
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
       - name: Run requested Blender task
-        run: blender --background --factory-startup --python cloud/blender/runner.py -- cloud/blender/job.json
+        run: |
+          blender --background --factory-startup --python cloud/blender/runner.py -- cloud/blender/job.json
+          test -s cloud-output/report.json
       - name: Upload GLB, BLEND and diagnostic reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: blacksite-blender-results
           path: cloud-output/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
