@@ -1,0 +1,38 @@
+name: MGLOTEK Cloud Blender - 2.5D levels
+on:
+  push:
+    branches: [mglotek-cloud-render]
+  workflow_dispatch:
+    inputs:
+      scenes:
+        description: "birch or all"
+        required: true
+        default: "birch"
+        type: choice
+        options: [birch, all]
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender on temporary cloud runner (not your PC)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version | head -3
+      - name: Produce editable scene, GLB and game-ready transparent overlay
+        env:
+          SCENES: ${{ github.event.inputs.scenes || 'birch' }}
+        run: |
+          mkdir -p cloud_output
+          blender --background --threads 2 --python cloud_blender/build_levels.py -- --scene "$SCENES" --out cloud_output
+      - name: Publish rendered images and scene sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: MGLOTEK-2_5D-Blender-${{ github.run_number }}
+          path: cloud_output/
+          retention-days: 14
+          if-no-files-found: error
