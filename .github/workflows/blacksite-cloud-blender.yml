@@ -1,0 +1,35 @@
+name: BLACKSITE free cloud Blender
+on:
+  push:
+    branches:
+      - game/blacksite-raptor-prototype
+    paths:
+      - 'cloud/blender/**'
+      - '.github/workflows/blacksite-cloud-blender.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  blender-cloud:
+    name: Blender on free GitHub Linux runner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout BLACKSITE source
+        uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+      - name: Run requested Blender task
+        run: blender --background --factory-startup --python cloud/blender/runner.py -- cloud/blender/job.json
+      - name: Upload GLB, BLEND and diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blacksite-blender-results
+          path: cloud-output/
+          if-no-files-found: warn
+          retention-days: 7
