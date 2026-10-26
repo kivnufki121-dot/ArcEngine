@@ -1,3 +1,4 @@
 {
-  "task": "smoke_test"
+  "task": "prepare_uv",
+  "source": "assets/models/character.glb"
 }
