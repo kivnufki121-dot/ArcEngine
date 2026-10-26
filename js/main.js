@@ -41,9 +41,20 @@ function startGame() {
     console.log('ArcEngine: локация запущена, объектов ' + location.objects.length + '.');
     updateLoadingProgress(70);
 
+    // Cap expensive 3D rendering to 60 FPS; pause when the tab is hidden.
+    // RAF remains synchronized with the display, avoiding a busy-wait loop.
+    const targetFrameMs = 1000 / 60;
     let last = performance.now();
+    let lastRender = 0;
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { last = performance.now(); lastRender = 0; }
+    });
     World3D.engine.runRenderLoop(() => {
-        const now = performance.now(), dt = (now - last) / 1000;
+        if (document.hidden) return;
+        const now = performance.now();
+        if (lastRender && now - lastRender < targetFrameMs - 1) return;
+        lastRender = now;
+        const dt = Math.min(0.1, (now - last) / 1000);
         last = now;
         game.update(Math.min(0.1, dt));
         location.update(dt);

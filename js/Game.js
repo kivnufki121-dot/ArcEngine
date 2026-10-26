@@ -13,12 +13,16 @@ class Game {
     /** @param {{ location: Location3D, camera: CameraController }} app */
     constructor(app) {
         this.app = app;
+        this.input = new InputManager();
+        this.controls = this.input.poll();
         this.running = false;
         this.energy = 1;          // 0..1
         this._fpsTimer = 0;
         this._stepTimer = 0;
         /** @type {LocationObject | null} */
         this.hero = app.location.findByTag(Game.HERO_TAG)[0] || null;
+        this.player = this.hero ? new PlayerController(app, this.hero) : null;
+        if (this.player) app.camera.follow(this.player.position);
 
         const button = UI.get('run');
         if (button) button.onClick(() => this.setRunning(!this.running));
@@ -32,17 +36,26 @@ class Game {
     }
 
     update(dt) {
+        this.controls = this.input.poll();
+        if (this.player) {
+            this.player.update(dt, this.controls);
+            if (this.controls.gamepadConnected) {
+                this.app.camera.azimuth += this.controls.lookX * dt * 2.2;
+                this.app.camera.pitch = this.app.camera._clampPitch(this.app.camera.pitch + this.controls.lookY * dt * 1.4);
+            }
+        }
+        this.running = !!(this.player && this.player.running && this.energy > 0);
         const c = Game.cfg();
         this.energy = Math.max(0, Math.min(1, this.energy + (this.running ? -dt / c.runSec : dt / c.restSec)));
         if (this.running && this.energy <= 0) this.setRunning(false);
 
         // The model appears when its file has loaded; play() on the current clip costs nothing.
         const clips = this.hero && this.hero.mesh ? Model3D.clips(this.hero.mesh) : null;
-        if (clips) clips.play(this.running ? 'run' : 'idle');
+        if (clips) clips.play(this.player && this.player.moving && !this.player.jumping ? 'run' : 'idle');
 
         // Footsteps: the sound stands where the character stands, so it fades with the distance.
-        this._stepTimer -= this.running ? dt : this._stepTimer;
-        if (this.running && this._stepTimer <= 0) {
+        this._stepTimer -= this.player && this.player.moving ? dt : 0;
+        if (this.player && this.player.moving && !this.player.jumping && this._stepTimer <= 0) {
             this._stepTimer = c.stepSec;
             if (this.hero) Sound3D.play('assets/sounds/step.wav', { at: this.hero.def, volume: 0.7 });
         }
