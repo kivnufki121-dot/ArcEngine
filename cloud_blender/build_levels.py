@@ -141,10 +141,10 @@ def build(theme,out):
     configure((17,0,2.1),sky,bpy.context.scene)
     out.mkdir(parents=True,exist_ok=True)
     blend=out/(theme+".blend");bpy.ops.wm.save_as_mainfile(filepath=str(blend))
-    glb=out/(theme+".glb")
-    bpy.ops.export_scene.gltf(filepath=str(glb),export_format="GLB")
     bpy.context.scene.render.filepath=str(out/(theme+"_mid.png"))
     bpy.ops.render.render(write_still=True)
+    glb=out/(theme+".glb")
+    bpy.ops.export_scene.gltf(filepath=str(glb),export_format="GLB")
     print("Rendered",label,flush=True)
 
 def main():

@@ -21,14 +21,18 @@ jobs:
       - name: Install Blender on temporary cloud runner (not your PC)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
           blender --version | head -3
       - name: Produce editable scene, GLB and game-ready transparent overlay
         env:
           SCENES: ${{ github.event.inputs.scenes || 'birch' }}
         run: |
           mkdir -p cloud_output
-          blender --background --threads 2 --python cloud_blender/build_levels.py -- --scene "$SCENES" --out cloud_output
+          export PYTHONPATH=/usr/lib/python3/dist-packages
+          blender --background --threads 2 --python cloud_blender/build_levels.py -- --scene "$SCENES" --out cloud_output 2>&1 | tee cloud_output/blender-log.txt
+          ! grep -q "Traceback (most recent call last)" cloud_output/blender-log.txt
+          test -s cloud_output/birch_mid.png
+          test -s cloud_output/birch.glb
       - name: Publish rendered images and scene sources
         uses: actions/upload-artifact@v4
         with:
