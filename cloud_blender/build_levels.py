@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 import bpy
 from mathutils import Vector
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from architectural_detail import decorate
 
 THEMES = {
     "birch": ("Берёзовый двор", (.10,.16,.18), (.78,.48,.22)),
@@ -201,6 +203,7 @@ def build(theme,out):
     for surface in (stone,roof,wood,iron,bark):
         age_surface(surface)
     detail_scene(theme,r,wood,iron,stone,glow)
+    decorate(theme,r,cube,cylinder,mat,wood,iron,stone,glow)
     configure((17,0,2.1),sky,bpy.context.scene)
     out.mkdir(parents=True,exist_ok=True)
     blend=out/(theme+".blend");bpy.ops.wm.save_as_mainfile(filepath=str(blend))

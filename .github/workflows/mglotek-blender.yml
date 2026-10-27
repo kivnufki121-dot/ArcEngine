@@ -4,7 +4,8 @@ on:
     branches: [mglotek-cloud-render]
     paths:
       - '.github/workflows/mglotek-blender.yml'
-      - 'cloud_blender/**'
+      - 'cloud_blender/build_levels.py'
+      - 'cloud_blender/architectural_detail.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,9 +16,9 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 5
       matrix:
-        theme: [kern, depot, carriage, conductor, cistern, vault]
+        theme: [birch, nursery, bakery, kern, station, depot, carriage, conductor, archive, cistern, vault]
     steps:
       - uses: actions/checkout@v4
         with:
