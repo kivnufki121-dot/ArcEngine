@@ -1,0 +1,6 @@
+{
+  "mode": "check",
+  "version": "",
+  "source_run": "",
+  "note": "Change mode to publish and give a verified GitHub Actions run id containing MGLOTEK-Game-Windows artifact. Empty means setup only."
+}
