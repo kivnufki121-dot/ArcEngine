@@ -27,6 +27,9 @@ class ReleaseTests(unittest.TestCase):
         with patch.dict("os.environ", {"INPUT_VERSION": "", "INPUT_RUN": ""}):
             self.assertEqual(pub.request()["mode"], "check")
 
+    def test_release_modes(self):
+        self.assertIn("draft", ("draft", "finalize"))
+
     def test_wrong_semver(self):
         self.assertFalse(pub.SEMVER.fullmatch("1.0.1!"))
 

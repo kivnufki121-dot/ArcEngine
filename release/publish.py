@@ -23,9 +23,14 @@ def request():
     run = os.getenv("INPUT_RUN") or data.get("source_run", "")
     url = data.get("source_url", "")
     digest = data.get("source_sha256", "")
-    if mode not in ("check", "publish"):
-        raise ValueError("mode must be check or publish")
-    if mode == "publish" or version or run:
+    if mode not in ("check", "publish", "draft", "finalize"):
+        raise ValueError("mode must be check, publish, draft, or finalize")
+    if mode in ("draft","finalize"):
+        if not SEMVER.fullmatch(str(version)):
+            raise ValueError("version must be X.Y.Z")
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("A 64-digit SHA256 checksum is required")
+    elif mode == "publish" or version or run:
         if not SEMVER.fullmatch(str(version)):
             raise ValueError("version must be X.Y.Z")
         if url:
@@ -158,13 +163,58 @@ def publish(spec):
           "/releases/tag/" + tag)
 
 
+def draft(spec):
+    tag = "mglotek-v" + spec["version"]
+    check = subprocess.run(["gh", "release", "view", tag, "--repo", os.environ["GH_REPO"]],
+                           capture_output=True, text=True)
+    if check.returncode == 0:
+        print("Draft already exists:", tag)
+        return
+    notes = Path("release_draft_notes.md")
+    notes.write_text(
+        "# МГЛОТЕК v" + spec["version"] + " — Windows\\n\\n"
+        "Черновик: ZIP еще не загружен или не прошел проверку SHA-256.\\n\\n"
+        "Финальная публикация проводится только после проверки игрового архива.\\n",
+        encoding="utf-8")
+    gh("release", "create", tag, "--repo", os.environ["GH_REPO"],
+       "--target", os.environ["GITHUB_SHA"], "--draft",
+       "--title", "МГЛОТЕК v" + spec["version"] + " — Windows",
+       "--notes-file", str(notes))
+    print("Prepared draft:", tag)
+
+
+def finalize(spec):
+    tag = "mglotek-v" + spec["version"]
+    dst = Path("release_staging")
+    dst.mkdir(exist_ok=True)
+    gh("release", "download", tag, "--repo", os.environ["GH_REPO"],
+       "--dir", str(dst))
+    files = list(dst.glob("*.zip"))
+    if len(files) != 1:
+        raise ValueError("Draft must have exactly one ZIP asset before publication")
+    game = files[0]
+    if hashlib.sha256(game.read_bytes()).hexdigest() != spec["source_sha256"]:
+        raise ValueError("ZIP digest mismatch — publication blocked")
+    count = validate_game_zip(game)
+    sums = dst / "SHA256SUMS.txt"
+    sums.write_text(spec["source_sha256"] + "  " + game.name + "\\n", encoding="ascii")
+    gh("release", "upload", tag, str(sums), "--repo", os.environ["GH_REPO"], "--clobber")
+    gh("release", "edit", tag, "--repo", os.environ["GH_REPO"],
+       "--draft=false", "--latest")
+    print("Published:", tag, "files validated:", count)
+
+
 if __name__ == "__main__":
     spec = request()
     print("Release request:", spec)
     if sys.argv[1:] == ["check"]:
         print("Validation OK; no release is created in check mode.")
     elif sys.argv[1:] == ["publish"]:
-        if spec["mode"] == "publish" or os.getenv("INPUT_VERSION"):
+        if spec["mode"] == "draft":
+            draft(spec)
+        elif spec["mode"] == "finalize":
+            finalize(spec)
+        elif spec["mode"] == "publish" or os.getenv("INPUT_VERSION"):
             publish(spec)
         else:
             print("No publish request: setup checked only.")
