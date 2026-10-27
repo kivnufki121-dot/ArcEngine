@@ -41,7 +41,7 @@ def cube(name, pos, scale, material, bevel=0.):
     o.data.materials.append(material)
     if bevel:
         b=o.modifiers.new("Worn edges","BEVEL");b.width=bevel;b.segments=2
-        o.modifiers.new("Weighted normals","WEIGHTED_NORMAL")
+        # CPU pipeline keeps low-poly hard edges without heavyweight normals
     return o
 
 def cylinder(name,pos,radius,depth,material,vertices=12):
@@ -100,7 +100,10 @@ def tree(x,rng,bark,leaves):
                  rng.uniform(.16,.30),.15,leaves,7)
 
 def configure(cam_target,sky,scene):
-    scene.render.engine = "BLENDER_EEVEE" if bpy.app.version<(4,2,0) else "BLENDER_EEVEE_NEXT"
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = 12
+    scene.cycles.use_denoising = True
     scene.render.image_settings.file_format="PNG";scene.render.image_settings.color_mode="RGBA"
     scene.render.film_transparent=True
     scene.render.resolution_x=1900;scene.render.resolution_y=470
