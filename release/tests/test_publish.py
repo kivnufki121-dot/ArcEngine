@@ -23,9 +23,9 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pub.validate_source_url(url)
 
-    def test_default_mode_is_check(self):
+    def test_requested_draft_mode(self):
         with patch.dict("os.environ", {"INPUT_VERSION": "", "INPUT_RUN": ""}):
-            self.assertEqual(pub.request()["mode"], "check")
+            self.assertEqual(pub.request()["mode"], "draft")
 
     def test_release_modes(self):
         self.assertIn("draft", ("draft", "finalize"))
