@@ -103,7 +103,7 @@ def configure(cam_target,sky,scene):
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.cycles.samples = 12
-    scene.cycles.use_denoising = True
+    scene.cycles.use_denoising = False
     scene.render.image_settings.file_format="PNG";scene.render.image_settings.color_mode="RGBA"
     scene.render.film_transparent=True
     scene.render.resolution_x=1900;scene.render.resolution_y=470
