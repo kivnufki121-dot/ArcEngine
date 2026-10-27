@@ -29,9 +29,11 @@ def material(name,color,metal=0,rough=.8,emission=0):
 
 def mesh(name,typ="cube",mat=None):
     if typ=="cube": bpy.ops.mesh.primitive_cube_add(size=1)
-    elif typ=="sphere": bpy.ops.mesh.primitive_uv_sphere_add(segments=12,ring_count=8)
-    else: bpy.ops.mesh.primitive_cylinder_add(vertices=10,radius=1,depth=2)
+    elif typ=="sphere": bpy.ops.mesh.primitive_uv_sphere_add(segments=28,ring_count=20)
+    else: bpy.ops.mesh.primitive_cylinder_add(vertices=20,radius=1,depth=2)
     o=bpy.context.object;o.name=name
+    if typ!="cube":
+        for polygon in o.data.polygons: polygon.use_smooth=True
     if mat:o.data.materials.append(mat)
     return o
 

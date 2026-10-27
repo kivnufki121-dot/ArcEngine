@@ -21,8 +21,8 @@ def ma(name, color, metal=0.0, rough=.8, emiss=0):
 
 def dress(PARTS, shape):
     C={}
-    C["red"]=ma("Crimson travel scarf / dyed wool",(.31,.012,.020),rough=.94)
-    C["rededge"]=ma("Scarlet scarf folds",(.64,.035,.055),rough=.86)
+    C["red"]=ma("Crimson travel scarf / dyed wool",(.47,.018,.027),rough=.94)
+    C["rededge"]=ma("Scarlet scarf folds",(.72,.041,.057),rough=.86)
     C["coat"]=ma("Black weathered duster leather",(.055,.052,.060),rough=.77)
     C["coatedge"]=ma("Duster stitched hems",(.18,.135,.115),rough=.79)
     C["shirt"]=ma("Inner charcoal vest",(.13,.137,.16),rough=.88)
@@ -35,43 +35,44 @@ def dress(PARTS, shape):
     # Replace the face and hood of previous prototype with actual human head and hair.
     face=PARTS["Faceless mask"]; face.data.materials.clear()
     face.data.materials.append(C["skin"])
-    face.scale=(.38,.29,.43)
+    face.scale=(.325,.24,.375)
     hood=PARTS["Hood"]; hood.data.materials.clear();hood.data.materials.append(C["hair"])
-    hood.scale=(.48,.32,.35)
+    hood.scale=(.41,.27,.28)
     body=PARTS["Torso"];body.data.materials.clear();body.data.materials.append(C["coat"])
+    body.scale=(.54,.34,.81)
     cape=PARTS["Cape / ragged back"];cape.data.materials.clear()
     cape.data.materials.append(C["coat"])
-    cape.scale=(.28,.30,1.08)
+    cape.scale=(.22,.22,1.01)
     # Deep, ragged coattails, distinct front flap and overlapping back flap.
     for side in (-1,1):
         s="L" if side==-1 else "R"
         shape("Duster hem "+s,(side*.31,.16,1.13),(.31,.24,.83),C["coat"],"cube")
         shape("Scuffed coat panel "+s,(side*.31,-.32,1.09),(.32,.13,.69),C["coat"],"cube")
         shape("Coat edge piping "+s,(side*.5,-.42,1.15),(.052,.07,.71),C["coatedge"],"cube")
-        shape("Armored shoulder "+s,(side*.56,-.02,2.85),(.32,.43,.31),C["steel"])
-        shape("Brass epaulet stud "+s,(side*.60,-.39,2.87),(.095,.09,.10),C["bronze"])
-        shape("Leather vambrace "+s,(side*.75,-.03,2.19),(.19,.19,.38),C["coat"])
+        shape("Armored shoulder "+s,(side*.56,-.02,2.85),(.245,.32,.22),C["steel"])
+        shape("Brass epaulet stud "+s,(side*.60,-.39,2.87),(.066,.07,.073),C["bronze"])
+        shape("Leather vambrace "+s,(side*.75,-.03,2.19),(.15,.15,.34),C["coat"])
         shape("Boot top "+s,(side*.28,-.02,.60),(.20,.23,.23),C["steel"])
     shape("Waistcoat front",(.01,-.395,2.53),(.41,.135,.65),C["shirt"],"cube")
     shape("Black collar",(0,-.05,3.00),(.58,.44,.18),C["coat"])
     # Conceal identity but preserve a visible human expression.
-    shape("Angular jaw",(.13,-.59,3.13),(.26,.21,.20),C["skin"])
-    shape("Nose bridge",(.18,-.66,3.45),(.080,.17,.15),C["skin"])
+    shape("Angular jaw",(.13,-.57,3.17),(.20,.13,.12),C["skin"])
+    shape("Nose bridge",(.18,-.63,3.43),(.052,.08,.12),C["skin"])
     for xx in (-.065,.25):
-        shape("Eye shadow "+str(xx),(xx,-.655,3.46),(.10,.045,.060),C["eyes"])
+        shape("Eye shadow "+str(xx),(xx,-.655,3.46),(.075,.04,.040),C["eyes"])
         shape("Brow "+str(xx),(xx,-.66,3.56),(.12,.05,.045),C["hair"],"cube")
     shape("Mouth line",(.11,-.72,3.20),(.14,.024,.025),C["eyes"],"cube")
     # Hair locks are short, tapered, irregular. Shapes are real editable cones.
-    for i in range(13):
-        a=(i/13)*math.tau
+    for i in range(18):
+        a=(i/18)*math.tau
         x=.07+.37*math.cos(a)
         y=-.18+.25*math.sin(a)
-        z=3.72+(i%3)*.08
-        o=shape("Hair lock %02d"%i,(x,y,z),(.085,.075,.24),C["hair"],"sphere")
-        o.rotation_euler[1]=(i%4-1.5)*.22
+        z=3.68+(i%3)*.058
+        o=shape("Hair lock %02d"%i,(x,y,z),(.055,.053,.125),C["hair"],"sphere")
+        o.rotation_euler[1]=(i%5-2)*.36
     for i in range(4):
         shape("Fringe strand %d"%i,(-.19+i*.16,-.53,3.72-i*.045),
-              (.073,.079,.18),C["hair"])
+              (.057,.047,.12),C["hair"])
     # Bright red layered scarf, loosely wrapped over both shoulders.
     shape("Scarf collar",(0,-.12,3.02),(.67,.46,.23),C["red"])
     shape("Scarf highlight",(.05,-.48,3.00),(.53,.105,.095),C["rededge"],"cube")
@@ -110,8 +111,8 @@ def animate(PARTS,move,state,index,bob,lean,cycle):
     for name,pos in (
         ("Waistcoat front",(.01+lean*.23,-.395,2.53+bob)),
         ("Black collar",(lean*.44,-.05,3+bob)),
-        ("Angular jaw",(.13+lean*.7,-.59,3.13+bob)),
-        ("Nose bridge",(.18+lean*.7,-.66,3.45+bob)),
+        ("Angular jaw",(.13+lean*.7,-.57,3.17+bob)),
+        ("Nose bridge",(.18+lean*.7,-.63,3.43+bob)),
         ("Mouth line",(.11+lean*.7,-.72,3.20+bob)),
         ("Scarf collar",(lean*.40,-.12,3.02+bob)),
         ("Scarf highlight",(.05+lean*.40,-.48,3+bob)),
@@ -129,10 +130,10 @@ def animate(PARTS,move,state,index,bob,lean,cycle):
     for xx in (-.065,.25):
         move("Eye shadow "+str(xx),(xx+lean*.7,-.655,3.46+bob))
         move("Brow "+str(xx),(xx+lean*.7,-.66,3.56+bob))
-    for i in range(13):
-        a=i/13*math.tau
+    for i in range(18):
+        a=i/18*math.tau
         move("Hair lock %02d"%i,(.07+.37*math.cos(a)+lean*.7,
-             -.18+.25*math.sin(a),3.72+(i%3)*.08+bob))
+             -.18+.25*math.sin(a),3.68+(i%3)*.058+bob))
     for i in range(4):
         move("Fringe strand %d"%i,(-.19+i*.16+lean*.7,-.53,3.72-i*.045+bob))
     for i in range(5):
