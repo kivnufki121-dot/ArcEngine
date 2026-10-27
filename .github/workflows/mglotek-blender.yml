@@ -2,6 +2,9 @@ name: MGLOTEK Cloud Blender - 2.5D levels
 on:
   push:
     branches: [mglotek-cloud-render]
+    paths:
+      - '.github/workflows/mglotek-blender.yml'
+      - 'cloud_blender/**'
   workflow_dispatch:
     inputs:
       scenes:
