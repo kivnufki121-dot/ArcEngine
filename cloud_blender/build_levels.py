@@ -99,6 +99,63 @@ def tree(x,rng,bark,leaves):
         cylinder("Autumn canopy",(x+math.sin(a)*1.35,math.cos(a)*.75,5.5+math.sin(k*1.6)*.75),
                  rng.uniform(.16,.30),.15,leaves,7)
 
+
+def age_surface(material, scale=18., strength=.24):
+    """Procedural surface breakup on actual Blender material nodes."""
+    nodes=material.node_tree.nodes;links=material.node_tree.links
+    bsdf=nodes.get("Principled BSDF")
+    tex=nodes.new("ShaderNodeTexNoise");tex.inputs["Scale"].default_value=scale
+    tex.inputs["Roughness"].default_value=.78
+    bump=nodes.new("ShaderNodeBump");bump.inputs["Strength"].default_value=strength
+    bump.inputs["Distance"].default_value=.065
+    links.new(tex.outputs["Fac"],bump.inputs["Height"])
+    links.new(bump.outputs["Normal"],bsdf.inputs["Normal"])
+    cr=nodes.new("ShaderNodeValToRGB")
+    cr.color_ramp.elements[0].position=.13
+    cr.color_ramp.elements[0].color=(*tuple(v*.48 for v in material.diffuse_color[:3]),1)
+    cr.color_ramp.elements[1].position=.87
+    cr.color_ramp.elements[1].color=(*material.diffuse_color[:3],1)
+    links.new(tex.outputs["Fac"],cr.inputs["Fac"])
+    links.new(cr.outputs["Color"],bsdf.inputs["Base Color"])
+
+
+def detail_scene(theme, rng, wood, iron, stone, glow):
+    """Rotted beams, stained masonry, hanging chains, roof tiles, interior glow."""
+    patina=mat("Copper roof patina",(.09,.19,.17),.52,.39)
+    moss=mat("Wet moss / memory growth",(.055,.15,.10),.0,.98)
+    glass=mat("Old lamp glass",(.76,.43,.18),.08,.21,1.0)
+    for i,x in enumerate((2.5,9.2,16.4,24.5,32.)):
+        h=4.9
+        for z in (.9,1.7,2.5,3.35):
+            for dx in (-1.6,1.6):
+                cube("Rib / cracked corner",(x+dx,-1.83,z),(.18,.23,.85),stone,.03)
+        for n in range(8):
+            xx=x-2.9+n*.8
+            o=cube("Uneven patinated roof shingle",(xx,-.8,4.85+rng.uniform(-.1,.1)),(.74,2.7,.12),patina,.028)
+            o.rotation_euler[1]=rng.uniform(-.12,.12)
+        for q in range(3):
+            xx=x+rng.uniform(-2.0,2.0)
+            cube("Rain-spoiled masonry / moss",(xx,-1.89,rng.uniform(.6,3.5)),
+                 (rng.uniform(.1,.25),.09,rng.uniform(.25,.7)),moss,.02)
+        cylinder("Chimney / broken flue",(x+1.8,.6,5.35),.27,1.35,iron,9)
+        cylinder("Flue opening",(x+1.8,.6,6.03),.29,.075,patina,9)
+        if i%2==0:
+            cube("Hanging lamp bracket",(x-.8,-2.2,3.3),(.10,.9,.10),iron)
+            cylinder("Amber lamp",(x-.8,-2.7,2.85),.15,.5,glass,8)
+    for x in (5.,14.,22.,30.):
+        for xx in (x-2.4,x+2.4):
+            for n in range(2):
+                cylinder("Rusted chains",(xx,-2.5,.8+n*.75),.032,.62,iron,7)
+    if theme in ("station","depot","carriage","conductor"):
+        for x in (7,17,27):
+            cube("Platform clock support",(x,-2.1,3.8),(.12,.1,1.6),iron)
+            cylinder("Hanging clock",(x,-2.22,4.5),.55,.18,stone,24)
+    if theme in ("archive","vault","cistern"):
+        for x in (4.,12.,20.,29.):
+            for z in (1.0,2.4,3.8):
+                cube("Archive panel",(x,-2.0,z),(1.2,.15,1.05),iron,.05)
+                cube("Inscribed memory",(x,-2.10,z),(.82,.04,.45),glow,.01)
+
 def configure(cam_target,sky,scene):
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
@@ -141,6 +198,9 @@ def build(theme,out):
         for x in (6.,15.,26.):
             cylinder("Ancient rusted column",(x,1.3,2.9),.22,5.8,iron)
             cube("Luminous sign",(x,-1.3,4.25),(.5,.13,1.0),glow,.05)
+    for surface in (stone,roof,wood,iron,bark):
+        age_surface(surface)
+    detail_scene(theme,r,wood,iron,stone,glow)
     configure((17,0,2.1),sky,bpy.context.scene)
     out.mkdir(parents=True,exist_ok=True)
     blend=out/(theme+".blend");bpy.ops.wm.save_as_mainfile(filepath=str(blend))
