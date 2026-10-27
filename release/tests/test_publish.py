@@ -14,6 +14,15 @@ spec.loader.exec_module(pub)
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_github_attachment_only(self):
+        self.assertTrue(pub.validate_source_url(
+            "https://github.com/user-attachments/files/12345/MGLOTEK_v1.0.1.zip"))
+        for url in ("https://attacker.example/files/game.zip",
+                    "http://github.com/user-attachments/files/5/game.zip",
+                    "https://github.com/attacker/repo/raw/main/game.zip"):
+            with self.assertRaises(ValueError):
+                pub.validate_source_url(url)
+
     def test_default_mode_is_check(self):
         with patch.dict("os.environ", {"INPUT_VERSION": "", "INPUT_RUN": ""}):
             self.assertEqual(pub.request()["mode"], "check")

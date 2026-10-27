@@ -1,5 +1,8 @@
 """Контролируемая публикация реальных ZIP МГЛОТЕКА на GitHub Releases."""
 import json
+import hashlib
+import urllib.request
+from urllib.parse import urlsplit
 import os
 import re
 import subprocess
@@ -18,14 +21,51 @@ def request():
     mode = data.get("mode", "check")
     version = os.getenv("INPUT_VERSION") or data.get("version", "")
     run = os.getenv("INPUT_RUN") or data.get("source_run", "")
+    url = data.get("source_url", "")
+    digest = data.get("source_sha256", "")
     if mode not in ("check", "publish"):
         raise ValueError("mode must be check or publish")
     if mode == "publish" or version or run:
         if not SEMVER.fullmatch(str(version)):
             raise ValueError("version must be X.Y.Z")
-        if not str(run).isdigit() or int(run) <= 0:
-            raise ValueError("source_run must be a positive numeric GitHub Actions run id")
-    return {"mode": mode, "version": str(version), "source_run": str(run)}
+        if url:
+            validate_source_url(url)
+            if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise ValueError("A 64-digit SHA256 checksum is required with a source URL")
+        elif not str(run).isdigit() or int(run) <= 0:
+            raise ValueError("source_run must be numeric unless a validated GitHub attachment URL is supplied")
+    return {"mode": mode, "version": str(version), "source_run": str(run),
+            "source_url": url, "source_sha256": digest}
+
+
+def validate_source_url(url):
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or parsed.netloc != "github.com":
+        raise ValueError("Only a public github.com user attachment is allowed")
+    if parsed.query or parsed.fragment or not re.fullmatch(
+        r"/user-attachments/files/[0-9]+/[A-Za-z0-9_.-]+[.]zip", parsed.path):
+        raise ValueError("Invalid GitHub user-attachment path")
+    return True
+
+
+def download_attachment(url, digest, target):
+    validate_source_url(url)
+    total = 0
+    checksum = hashlib.sha256()
+    req = urllib.request.Request(url, headers={"User-Agent": "MGLOTEK-Release-Publisher/1.0"})
+    with urllib.request.urlopen(req, timeout=180) as source, open(target, "wb") as out:
+        while True:
+            block = source.read(1024 * 256)
+            if not block:
+                break
+            total += len(block)
+            if total > 180_000_000:
+                raise ValueError("Attachment too large")
+            checksum.update(block)
+            out.write(block)
+    if checksum.hexdigest() != digest:
+        raise ValueError("SHA256 mismatch; refusing publication")
+    return target
 
 
 def validate_game_zip(path):
@@ -69,20 +109,25 @@ def gh(*args):
 def publish(spec):
     tag = "mglotek-v" + spec["version"]
     run = spec["source_run"]
-    meta = json.loads(gh("api", "repos/" + os.environ["GH_REPO"] + "/actions/runs/" + run))
-    if meta.get("conclusion") != "success":
-        raise RuntimeError("Refusing an unverified or failed Actions run")
-    if meta.get("repository", {}).get("full_name") != os.environ["GH_REPO"]:
-        raise RuntimeError("Actions run belongs to a different repository")
-    if meta.get("head_branch") != "mglotek-cloud-render":
-        raise RuntimeError("Unexpected workflow branch")
     dst = Path("release_staging")
     dst.mkdir(exist_ok=True)
-    gh("run", "download", run, "--repo", os.environ["GH_REPO"],
-       "--name", ARTIFACT, "--dir", str(dst))
-    found = list(dst.glob("*.zip"))
-    if len(found) != 1:
-        raise ValueError("Expected exactly one Windows game ZIP in the Actions artifact")
+    if spec["source_url"]:
+        attachment = dst / "MGLOTEK-source-upload.zip"
+        download_attachment(spec["source_url"], spec["source_sha256"], attachment)
+        found = [attachment]
+    else:
+        meta = json.loads(gh("api", "repos/" + os.environ["GH_REPO"] + "/actions/runs/" + run))
+        if meta.get("conclusion") != "success":
+            raise RuntimeError("Refusing an unverified or failed Actions run")
+        if meta.get("repository", {}).get("full_name") != os.environ["GH_REPO"]:
+            raise RuntimeError("Actions run belongs to a different repository")
+        if meta.get("head_branch") != "mglotek-cloud-render":
+            raise RuntimeError("Unexpected workflow branch")
+        gh("run", "download", run, "--repo", os.environ["GH_REPO"],
+           "--name", ARTIFACT, "--dir", str(dst))
+        found = list(dst.glob("*.zip"))
+        if len(found) != 1:
+            raise ValueError("Expected exactly one Windows game ZIP in the Actions artifact")
     count = validate_game_zip(found[0])
     output = dst / ("MGLOTEK_v" + spec["version"] + "_Windows.zip")
     if found[0] != output:
@@ -101,7 +146,7 @@ def publish(spec):
         "# МГЛОТЕК " + spec["version"] +
         "\n\nWindows ZIP. Python 3.11 + pygame.\n\n"
         + "Game files verified: " + str(count) + ".\n"
-        + "Source GitHub Actions run: " + run + ".\n"
+        + "Source: " + (spec["source_url"] or "GitHub Actions run " + run) + ".\n"
         + "This package does not install Blender or ComfyUI on the player's PC.\n",
         encoding="utf-8",
     )

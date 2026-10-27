@@ -2,5 +2,7 @@
   "mode": "check",
   "version": "",
   "source_run": "",
-  "note": "Change mode to publish and give a verified GitHub Actions run id containing MGLOTEK-Game-Windows artifact. Empty means setup only."
+  "source_url": "",
+  "source_sha256": "",
+  "note": "After a real ZIP is attached to a GitHub issue: set mode=publish, version=1.0.1, source_url to github.com/user-attachments/files/.../filename.zip and source_sha256 to computed digest. Check the archive before publishing."
 }
