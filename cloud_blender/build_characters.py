@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 import bpy
 from mathutils import Vector
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hero_concept
 
 NAMES=("ash","baker","soldier","nanny")
