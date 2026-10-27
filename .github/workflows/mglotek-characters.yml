@@ -5,6 +5,7 @@ on:
     paths:
       - 'cloud_blender/build_characters.py'
       - 'cloud_blender/stitch_characters.py'
+      - 'cloud_blender/hero_concept.py'
       - '.github/workflows/mglotek-characters.yml'
   workflow_dispatch:
 permissions:
@@ -17,7 +18,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        character: [ash, baker, soldier, nanny]
+        character: [ash]
     steps:
       - uses: actions/checkout@v4
       - name: Install CPU Blender and Pillow in ephemeral runner

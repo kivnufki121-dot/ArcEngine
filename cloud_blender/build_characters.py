@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 import bpy
 from mathutils import Vector
+import hero_concept
 
 NAMES=("ash","baker","soldier","nanny")
 STATES=("idle","walk","jump","dash","charge","attack","hurt","ritual","pursue","windup")
@@ -102,11 +103,12 @@ def body(name):
         shape("Long tattered skirt",(0,0,1.49),(.55,.45,.71),suit)
     else:
         shape("Hook quiver",(-.45,.27,2.35),(.25,.23,.58),gear)
+        hero_concept.dress(PARTS,shape)
     bpy.ops.object.camera_add(location=(4.0,-13.8,2.75))
     cam=bpy.context.object;cam.name="MGLOTEK_SIDE_ORTHO"
     target=Vector((0,0,1.95))
     cam.rotation_euler=(target-cam.location).to_track_quat("-Z","Y").to_euler()
-    cam.data.type="ORTHO";cam.data.ortho_scale=4.75
+    cam.data.type="ORTHO";cam.data.ortho_scale=5.15 if name=="ash" else 4.75
     scene=bpy.context.scene;scene.camera=cam
     bpy.ops.object.light_add(type="AREA",location=(-3,-5,7))
     bpy.context.object.data.energy=520;bpy.context.object.data.size=5.0
@@ -114,7 +116,7 @@ def body(name):
     bpy.context.object.data.energy=410;bpy.context.object.data.size=4.0
     scene.world.use_nodes=True;scene.world.node_tree.nodes["Background"].inputs["Strength"].default_value=.28
     scene.render.engine="CYCLES";scene.cycles.device="CPU"
-    scene.cycles.samples=7;scene.cycles.use_denoising=False
+    scene.cycles.samples=16 if name=="ash" else 7;scene.cycles.use_denoising=False
     scene.render.image_settings.file_format="PNG"
     scene.render.image_settings.color_mode="RGBA"
     scene.render.film_transparent=True
@@ -176,6 +178,8 @@ def pose(state,i):
     place_line("shaft",(x,0,z),tip,.065)
     place_line("blade1",tip,(tip[0]+.48,0,tip[2]+.17),.082)
     place_line("blade2",(tip[0]+.48,0,tip[2]+.17),(tip[0]+.63,0,tip[2]-.21),.065)
+    if "Scarf collar" in PARTS:
+        hero_concept.animate(PARTS,move,state,i,bob,lean,cycle)
 
 def run(name,out):
     body(name);out.mkdir(parents=True,exist_ok=True)
@@ -190,6 +194,14 @@ def run(name,out):
             bpy.context.scene.render.filepath=str(frame_dir/("%02d_%02d.png"%(row,col)))
             bpy.ops.render.render(write_still=True)
         print("State",name,state,"rendered",flush=True)
+    if name=="ash":
+        pose("idle",0)
+        scene=bpy.context.scene
+        scene.render.resolution_x=720
+        scene.render.resolution_y=912
+        scene.cycles.samples=32
+        scene.render.filepath=str(out/"ash_concept_portrait.png")
+        bpy.ops.render.render(write_still=True)
     print("FINISHED",name,flush=True)
 
 if __name__=="__main__":
